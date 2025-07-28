@@ -78,7 +78,9 @@ export function ClientCommunications() {
     const loadDocumentRequests = async () => {
       try {
         setIsLoading(true);
+        console.log('Loading document requests...');
         const requests = await documentRequestsApi.getAll();
+        console.log('Loaded document requests:', requests);
         setDocumentRequests(requests);
       } catch (error) {
         console.error('Failed to load document requests:', error);
@@ -101,7 +103,7 @@ export function ClientCommunications() {
   const filteredRequests = documentRequests.filter(request => {
     const matchesSearch = !searchQuery || 
       request.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      getClientName(request.clientId).toLowerCase().includes(searchQuery.toLowerCase());
+      getClientName(request.client_id).toLowerCase().includes(searchQuery.toLowerCase());
     
     const matchesStatus = statusFilter === 'all' || request.status === statusFilter;
     
@@ -162,6 +164,8 @@ export function ClientCommunications() {
     sendEmail: boolean;
   }) => {
     try {
+      console.log('Creating document request with data:', requestData);
+      
       // Create document request in database
       const newRequest = await documentRequestsApi.create({
         client_id: requestData.clientId,
@@ -172,12 +176,15 @@ export function ClientCommunications() {
         status: 'pending',
       });
 
+      console.log('Created document request:', newRequest);
+
       // Add to local state
       setDocumentRequests([newRequest, ...documentRequests]);
       
       // If sendEmail is true, call the Supabase Edge Function
       if (requestData.sendEmail) {
         try {
+          console.log('Calling send-document-request function with requestId:', newRequest.id);
           const { data, error } = await supabase.functions.invoke('send-document-request', {
             body: { requestId: newRequest.id }
           });
@@ -369,22 +376,22 @@ export function ClientCommunications() {
                           <Tooltip content="Client associated with this request">
                             <User className="w-4 h-4 mr-1" />
                           </Tooltip>
-                          {getClientName(request.clientId)}
+                          {getClientName(request.client_id)}
                         </span>
                         <span className="flex items-center">
                           <Calendar className="w-4 h-4 mr-1" />
-                          Due: {formatDate(request.dueDate)} ({getDaysUntilDue(request.dueDate)})
+                          Due: {formatDate(request.due_date)} ({getDaysUntilDue(request.due_date)})
                         </span>
                         <span className="flex items-center">
                           <Tooltip content="Date when this request was created">
                             <Clock className="w-4 h-4 mr-1" />
                           </Tooltip>
-                          Created: {formatDate(request.createdAt)}
+                          Created: {formatDate(request.created_at)}
                         </span>
-                        {request.lastReminder && (
+                        {request.last_reminder_sent && (
                           <span className="flex items-center">
                             <Mail className="w-4 h-4 mr-1" />
-                            Last Reminder: {formatDate(request.lastReminder)}
+                            Last Reminder: {formatDate(request.last_reminder_sent)}
                           </span>
                         )}
                       </div>
@@ -428,7 +435,7 @@ export function ClientCommunications() {
                   <div className="mt-4">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-sm font-medium text-text-secondary">
-                        {request.documents.filter(doc => doc.status === 'uploaded').length} of {request.documents.length} documents received
+                        {request.document_request_items?.filter(doc => doc.status === 'uploaded').length || 0} of {request.document_request_items?.length || 0} documents received
                       </span>
                       <span className="text-sm font-medium text-text-secondary">
                         {getCompletionPercentage(request)}%
@@ -450,7 +457,7 @@ export function ClientCommunications() {
                   
                   {/* Document List - Collapsed View */}
                   <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-                    {request.documents.map((doc) => (
+                    {request.document_request_items?.map((doc) => (
                       <div 
                         key={doc.id} 
                         className={`px-3 py-2 rounded-lg text-sm flex items-center justify-between ${
@@ -459,7 +466,7 @@ export function ClientCommunications() {
                             : 'bg-surface border border-border-subtle text-text-secondary'
                         }`}
                       >
-                        <span className="truncate">{doc.name}</span>
+                        <span className="truncate">{doc.document_name}</span>
                         {doc.status === 'uploaded' ? (
                           <CheckCircle className="w-4 h-4 flex-shrink-0 ml-2" />
                         ) : (
