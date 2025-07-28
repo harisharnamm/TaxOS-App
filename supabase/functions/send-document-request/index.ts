@@ -48,17 +48,30 @@ serve(async (req) => {
     // Get document request and client details
     const { data: request, error: requestError } = await supabase
       .from('document_requests')
-      .select(`
-        *,
-        clients!inner(name, email)
-      `)
+      .select('*')
       .eq('id', requestId)
       .eq('user_id', user.id)
       .single();
 
     if (requestError || !request) {
+      console.error('Request not found:', requestError);
       return new Response(
         JSON.stringify({ error: 'Document request not found' }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Get client details separately
+    const { data: client, error: clientError } = await supabase
+      .from('clients')
+      .select('name, email')
+      .eq('id', request.client_id)
+      .single();
+
+    if (clientError || !client) {
+      console.error('Client not found:', clientError);
+      return new Response(
+        JSON.stringify({ error: 'Client not found' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -92,7 +105,7 @@ serve(async (req) => {
               <h1 style="margin: 0; color: #333;">Document Request</h1>
             </div>
             
-            <p>Dear ${request.clients.name},</p>
+            <p>Dear ${client.name},</p>
             
             <p>We need the following documents for <strong>${request.title}</strong>:</p>
             
@@ -118,9 +131,18 @@ serve(async (req) => {
     `;
 
     // Send email via Resend
+    const fromEmail = Deno.env.get('RESEND_FROM') || 'documents@taxos.space';
+    
+    console.log('Sending email with data:', {
+      from: fromEmail,
+      to: client.email,
+      subject: `Document Request: ${request.title}`,
+      htmlLength: emailHtml.length
+    });
+
     const { data: emailResult, error: emailError } = await resend.emails.send({
-      from: Deno.env.get('RESEND_FROM')!,
-      to: request.clients.email,
+      from: fromEmail,
+      to: client.email,
       subject: `Document Request: ${request.title}`,
       html: emailHtml,
       headers: {
@@ -131,7 +153,7 @@ serve(async (req) => {
     if (emailError) {
       console.error('Resend API error:', emailError);
       return new Response(
-        JSON.stringify({ error: 'Failed to send email' }),
+        JSON.stringify({ error: 'Failed to send email', details: emailError }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -154,7 +176,7 @@ serve(async (req) => {
         request_id: requestId,
         resend_message_id: emailResult.id,
         email_type: 'initial_request',
-        recipient_email: request.clients.email,
+        recipient_email: client.email,
         subject: `Document Request: ${request.title}`,
         status: 'sent'
       });
@@ -171,7 +193,7 @@ serve(async (req) => {
   } catch (error) {
     console.error('Error sending document request:', error);
     return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
+      JSON.stringify({ error: 'Internal server error', details: error.message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
