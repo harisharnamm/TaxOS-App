@@ -235,12 +235,7 @@ export function ClientCommunications() {
   };
 
   // Handle deleting a request
-  const handleDeleteRequest = (requestId: string) => {
-    if (window.confirm('Are you sure you want to delete this document request?')) {
-      setDocumentRequests(prev => prev.filter(req => req.id !== requestId));
-      toast.success('Request Deleted', 'Document request has been deleted successfully');
-    }
-  };
+  
 
   // Get stats for the dashboard
   const stats = {
@@ -450,7 +445,27 @@ export function ClientCommunications() {
                         aria-label="Delete request"
                         size="sm"
                         icon={Trash2}
-                        onClick={() => handleDeleteRequest(request.id)}
+                        onClick={async () => {
+                          if (window.confirm('Are you sure you want to delete this document request? This action cannot be undone.')) {
+                            try {
+                              // Delete from database
+                              await documentRequestsApi.delete(request.id);
+                              
+                              // Update local state
+                              setDocumentRequests(prev => prev.filter(req => req.id !== request.id));
+                              
+                              // Close detail modal if the deleted request was selected
+                              if (selectedRequest && selectedRequest.id === request.id) {
+                                setSelectedRequest(null);
+                              }
+                              
+                              toast.success('Request Deleted', 'Document request has been deleted successfully');
+                            } catch (error) {
+                              console.error('Delete error:', error);
+                              toast.error('Delete Failed', 'Failed to delete document request. Please try again.');
+                            }
+                          }
+                        }}
                         className="text-red-600 hover:text-red-700 hover:bg-red-50"
                       />
                     </div>
@@ -828,7 +843,7 @@ export function ClientCommunications() {
                       <p className={`text-text-primary ${
                         selectedRequest.status === 'overdue' ? 'text-red-600 font-medium' : ''
                       }`}>
-                        {formatDate(selectedRequest.dueDate)} ({getDaysUntilDue(selectedRequest.dueDate)})
+                        {formatDate(selectedRequest.due_date)} ({getDaysUntilDue(selectedRequest.due_date)})
                       </p>
                     </div>
                     <div>
@@ -853,7 +868,7 @@ export function ClientCommunications() {
                     </div>
                     <div>
                       <p className="text-sm font-medium text-text-tertiary">Client</p>
-                      <p className="text-text-primary">{getClientName(selectedRequest.clientId)}</p>
+                      <p className="text-text-primary">{getClientName(selectedRequest.client_id)}</p>
                     </div>
                   </div>
                 </div>

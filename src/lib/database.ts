@@ -553,6 +553,28 @@ export const documentRequests = {
   },
 
   async delete(id: string): Promise<void> {
+    // First delete related records
+    const { error: itemsError } = await supabase
+      .from('document_request_items')
+      .delete()
+      .eq('request_id', id);
+
+    if (itemsError) {
+      console.error('Error deleting document request items:', itemsError);
+      throw itemsError;
+    }
+
+    const { error: commError } = await supabase
+      .from('email_communications')
+      .delete()
+      .eq('request_id', id);
+
+    if (commError) {
+      console.error('Error deleting email communications:', commError);
+      throw commError;
+    }
+
+    // Then delete the main document request
     const { error } = await supabase
       .from('document_requests')
       .delete()
