@@ -1,11 +1,16 @@
 import React, { useState, useEffect } from 'react';
+import { AnimatePresence } from 'framer-motion';
 import { TopBar } from '../components/organisms/TopBar';
 import { GlobalSearch } from '../components/molecules/GlobalSearch';
 import { useSearch } from '../contexts/SearchContext';
 import { useDocuments } from '../hooks/useDocuments';
 import { useDocumentProcessing, DocumentClassification } from '../hooks/useDocumentProcessing';
+import { useChat } from '../hooks/useChat';
 import { DocumentClassificationDialog } from '../components/ui/document-classification-dialog';
-import { EnhancedDocumentUpload } from '../components/ui/enhanced-document-upload';
+import { supabase } from '../lib/supabase';
+
+import { AestheticUpload } from '../components/ui/aesthetic-upload';
+import { EnhancedDocumentPreview } from '../components/ui/enhanced-document-preview';
 import { EmptyState } from '../components/ui/empty-state';
 import { useToast } from '../contexts/ToastContext';
 import { Skeleton } from '../components/ui/skeleton';
@@ -27,15 +32,18 @@ import {
   Plus,
   X,
   Trash2,
+  Brain,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  Calculator
 } from 'lucide-react';
 import { Document } from '../types/documents';
-import type { ProcessingDocument } from '../components/ui/enhanced-document-upload';
+
 
 export function DocumentManagement() {
   const { documents, loading, refreshDocuments, downloadDocument, getDocumentPreviewURL, deleteDocument } = useDocuments();
   const { getProcessingState, updateProcessingState, approveClassification, overrideClassification } = useDocumentProcessing();
+  const { sendMessage } = useChat();
   const { isSearchOpen, closeSearch, openSearch } = useSearch();
   const toast = useToast();
   const [searchQuery, setSearchQuery] = useState('');
@@ -44,18 +52,16 @@ export function DocumentManagement() {
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
   const [showClassificationDialog, setShowClassificationDialog] = useState(false);
   const [showUpload, setShowUpload] = useState(false);
-  const [processingDocuments, setProcessingDocuments] = useState<ProcessingDocument[]>([]);
-  const [expandedProcessingDocId, setExpandedProcessingDocId] = useState<string | null>(null);
-
-  // Add a handler to receive processing document info from upload
-  const handleProcessingDocument = (processingDoc: ProcessingDocument) => {
-    setProcessingDocuments(prev => [...prev, processingDoc]);
-  };
-
-  // Remove from processingDocuments when done
-  const handleProcessingComplete = (documentId: string) => {
-    setProcessingDocuments(prev => prev.filter(doc => doc.documentId !== documentId));
-  };
+  const [previewDocument, setPreviewDocument] = useState<Document | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [showPreview, setShowPreview] = useState(false);
+  const [expandedDocumentId, setExpandedDocumentId] = useState<string | null>(null);
+  const [isUploadMinimized, setIsUploadMinimized] = useState(false);
+  const [showAIAnalysis, setShowAIAnalysis] = useState(false);
+  const [aiAnalysisDocument, setAiAnalysisDocument] = useState<Document | null>(null);
+  const [aiAnalysisLoading, setAiAnalysisLoading] = useState(false);
+  const [aiAnalysisResult, setAiAnalysisResult] = useState<any>(null);
+  const [isUsingCachedAnalysis, setIsUsingCachedAnalysis] = useState(false);
 
   // Listen for documents that need classification approval
   useEffect(() => {
@@ -77,10 +83,12 @@ export function DocumentManagement() {
     });
   }, [documents, getProcessingState, updateProcessingState]);
 
+
+
   const handleUploadComplete = (documentIds: string[]) => {
-    console.log('Documents uploaded successfully:', documentIds);
-    toast.success('Upload Complete', `${documentIds.length} document(s) uploaded and processing started`);
-    setShowUpload(false);
+    console.log('Documents processed successfully:', documentIds);
+    toast.success('Processing Complete', `${documentIds.length} document(s) processed successfully`);
+    // Don't close the modal here - let the AestheticUpload component handle it
     
     // Mark documents as processing
     documentIds.forEach(docId => {
@@ -178,17 +186,231 @@ export function DocumentManagement() {
 
   const handlePreviewDocument = async (documentId: string) => {
     try {
+      const document = documents.find(d => d.id === documentId);
+      if (!document) return;
+      
+      setPreviewDocument(document);
+      setShowPreview(true);
+      
       const result = await getDocumentPreviewURL(documentId);
       if (result.url) {
-        window.open(result.url, '_blank');
+        setPreviewUrl(result.url);
       } else {
+        setShowPreview(false);
         toast.error('Preview Failed', result.error || 'Failed to generate preview URL');
       }
     } catch (error) {
       console.error('Preview error:', error);
+      setShowPreview(false);
       toast.error('Preview Failed', 'An unexpected error occurred');
     }
   };
+
+  const handleAIAnalysis = async (document: Document) => {
+    try {
+      // Reset all states
+      setAiAnalysisResult(null);
+      setAiAnalysisLoading(true);
+      setAiAnalysisDocument(document);
+      setShowAIAnalysis(true);
+
+      // Check if we already have a saved analysis for this document
+      if (document.ai_analysis_response) {
+        console.log('Using cached AI analysis for document:', document.id);
+        setAiAnalysisResult(document.ai_analysis_response);
+        setIsUsingCachedAnalysis(true);
+        setAiAnalysisLoading(false);
+        return;
+      }
+
+      setIsUsingCachedAnalysis(false);
+
+      // Build a comprehensive prompt with document content
+      let documentContent = '';
+      
+      if (document.ocr_text && document.ocr_text.length > 0) {
+        // Include OCR text (limit to avoid token overflow)
+        const ocrPreview = document.ocr_text.length > 1000 
+          ? document.ocr_text.substring(0, 1000) + '...' 
+          : document.ocr_text;
+        documentContent += `\n\nDOCUMENT CONTENT (OCR Text):\n${ocrPreview}`;
+      }
+      
+      if (document.ai_summary && document.ai_summary.length > 0) {
+        documentContent += `\n\nAI SUMMARY:\n${document.ai_summary}`;
+      }
+
+      // If no document content is available, provide a helpful message
+      if (!documentContent) {
+        documentContent = `\n\nNOTE: This document appears to have limited content available for analysis. The document has been processed but may not contain extractable text or may need additional processing.`;
+      }
+
+      const analysisPrompt = `You are a tax professional analyzing a ${document.document_type} document. Please provide a comprehensive, structured analysis with the following sections:
+
+DOCUMENT SUMMARY:
+Provide a detailed summary of the document content, including key details like amounts, dates, parties involved, and purpose.
+
+KEY INSIGHTS:
+List the most important findings and observations from the document, including any notable financial information, dates, or compliance details. Use bullet points (•) for each insight.
+
+TAX IMPLICATIONS:
+Identify potential tax deductions, credits, compliance issues, or tax-related considerations based on the document content. Use bullet points (•) for each implication.
+
+RECOMMENDATIONS:
+Provide actionable recommendations for the client or tax professional regarding this document. Use bullet points (•) for each recommendation.
+
+COMPLIANCE CONSIDERATIONS:
+Highlight any compliance requirements, deadlines, or regulatory considerations. Use bullet points (•) for each consideration.
+
+Document details:
+- Filename: ${document.original_filename}
+- Type: ${document.document_type}
+- Classification: ${document.eden_ai_classification}
+- Secondary Classification: ${document.secondary_classification || 'N/A'}
+- Client ID: ${document.client_id}
+- OCR Text Available: ${document.ocr_text ? 'Yes' : 'No'}
+- AI Summary Available: ${document.ai_summary ? 'Yes' : 'No'}${documentContent}
+
+IMPORTANT: 
+1. Base your analysis on the actual document content provided above. If the document content is available, analyze it thoroughly. If no content is available, explain what information would be needed for proper analysis.
+2. Use bullet points (•) for lists in Key Insights, Tax Implications, Recommendations, and Compliance Considerations sections.
+3. Keep each section clearly separated and well-formatted.`;
+
+      // Call the chat function directly to get the response
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('No valid session');
+      }
+
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: analysisPrompt,
+          client_id: document.client_id,
+          context_documents: [document.id],
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
+
+      const { message: assistantMessage } = await response.json();
+      
+      if (assistantMessage) {
+        const analysisResult = parseAIResponse(assistantMessage);
+        
+        // Save the analysis result to the database
+        const { error: saveError } = await supabase
+          .from('documents')
+          .update({ 
+            ai_analysis_response: analysisResult,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', document.id);
+
+        if (saveError) {
+          console.error('Error saving AI analysis:', saveError);
+          // Still show the analysis even if saving fails
+        } else {
+          console.log('AI analysis saved to database for document:', document.id);
+          // Refresh the documents to get the updated data
+          refreshDocuments();
+        }
+        
+        setAiAnalysisResult(analysisResult);
+      } else {
+        throw new Error('No response content received from AI');
+      }
+
+    } catch (error) {
+      console.error('AI Analysis error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
+      toast.error('AI Analysis Failed', errorMessage);
+    } finally {
+      setAiAnalysisLoading(false);
+    }
+  };
+
+  // Parse the AI response into structured format
+  const parseAIResponse = (content: string) => {
+    const sections = {
+      summary: '',
+      keyInsights: [] as string[],
+      taxImplications: [] as string[],
+      recommendations: [] as string[],
+      complianceConsiderations: [] as string[]
+    };
+
+    // Clean up the content and normalize line breaks
+    const cleanContent = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    
+    // Extract Document Summary - look for content after "Document Summary" or "📋 Document Summary"
+    const summaryMatch = cleanContent.match(/(?:📋\s*)?(?:document summary|summary)[:\s]*([\s\S]*?)(?=\n\s*(?:key insights|insights|tax implications|recommendations|compliance considerations)|$)/i);
+    if (summaryMatch) {
+      sections.summary = summaryMatch[1].trim().replace(/\n+/g, ' ').replace(/\s+/g, ' ');
+    }
+
+    // Extract Key Insights
+    const insightsMatch = cleanContent.match(/(?:key insights|insights)[:\s]*([\s\S]*?)(?=\n\s*(?:tax implications|recommendations|compliance considerations)|$)/i);
+    if (insightsMatch) {
+      const insightsText = insightsMatch[1].trim();
+      // Split by sentences or bullet points
+      const insights = insightsText.split(/(?<=\.)\s+/).filter(item => item.trim() && item.length > 10);
+      sections.keyInsights = insights.map(insight => insight.trim()).filter(insight => insight.length > 0);
+    }
+
+    // Extract Tax Implications
+    const taxMatch = cleanContent.match(/(?:tax implications|tax)[:\s]*([\s\S]*?)(?=\n\s*(?:recommendations|compliance considerations)|$)/i);
+    if (taxMatch) {
+      const taxText = taxMatch[1].trim();
+      // Split by sentences or bullet points
+      const implications = taxText.split(/(?<=\.)\s+/).filter(item => item.trim() && item.length > 10);
+      sections.taxImplications = implications.map(implication => implication.trim()).filter(implication => implication.length > 0);
+    }
+
+    // Extract Recommendations
+    const recMatch = cleanContent.match(/(?:recommendations)[:\s]*([\s\S]*?)(?=\n\s*(?:compliance considerations)|$)/i);
+    if (recMatch) {
+      const recText = recMatch[1].trim();
+      // Split by sentences or bullet points
+      const recommendations = recText.split(/(?<=\.)\s+/).filter(item => item.trim() && item.length > 10);
+      sections.recommendations = recommendations.map(rec => rec.trim()).filter(rec => rec.length > 0);
+    }
+
+    // Extract Compliance Considerations
+    const compMatch = cleanContent.match(/(?:compliance considerations|compliance)[:\s]*([\s\S]*?)(?=\n\s*(?:recommendations|$)|$)/i);
+    if (compMatch) {
+      const compText = compMatch[1].trim();
+      // Split by sentences or bullet points
+      const considerations = compText.split(/(?<=\.)\s+/).filter(item => item.trim() && item.length > 10);
+      sections.complianceConsiderations = considerations.map(consideration => consideration.trim()).filter(consideration => consideration.length > 0);
+    }
+
+    // Fallback: if no structured content found, use the full content as summary
+    if (!sections.summary && sections.keyInsights.length === 0) {
+      sections.summary = content;
+    }
+
+    const result = {
+      summary: sections.summary || 'Analysis completed successfully',
+      keyInsights: sections.keyInsights.length > 0 ? sections.keyInsights : ['Document analysis completed'],
+      taxImplications: sections.taxImplications.length > 0 ? sections.taxImplications : ['Review document for tax implications'],
+      recommendations: sections.recommendations.length > 0 ? sections.recommendations : ['Consider professional review'],
+      complianceConsiderations: sections.complianceConsiderations.length > 0 ? sections.complianceConsiderations : ['Verify compliance requirements'],
+      confidence: 0.95,
+      processingTime: 'Real-time analysis'
+    };
+
+    return result;
+  };
+
+
 
   const getStatusBadge = (document: Document) => {
     const state = getProcessingState(document.id);
@@ -249,7 +471,7 @@ export function DocumentManagement() {
       return <RefreshCw className="w-4 h-4 text-blue-600 animate-spin" />;
     }
     
-    if (document.eden_ai_processed_data) {
+    if (document.classification_api_response) {
       return <CheckCircle className="w-4 h-4 text-green-600" />;
     }
     
@@ -390,32 +612,19 @@ export function DocumentManagement() {
           </div>
         </div>
 
-        {/* Upload Section */}
-        {showUpload && (
-          <div className="bg-surface-elevated rounded-2xl border border-border-subtle p-6 mb-8 shadow-soft">
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h3 className="text-lg font-semibold text-text-primary">Upload Documents</h3>
-                <p className="text-text-tertiary">Upload documents for AI-powered processing and classification</p>
-              </div>
-              <Button
-                variant="ghost"
-                onClick={() => setShowUpload(false)}
-                className="text-text-secondary hover:text-text-primary"
-              >
-                <X className="w-5 h-5" />
-              </Button>
-            </div>
-            
-            <EnhancedDocumentUpload
-              allowMultiple={true}
+        {/* Aesthetic Upload Modal */}
+        <AnimatePresence>
+          {showUpload && (
+            <AestheticUpload
+              clientId={undefined} // This will require user to select a client
               onUploadComplete={handleUploadComplete}
               onUploadError={handleUploadError}
-              onProcessingDocument={handleProcessingDocument}
-              onProcessingComplete={handleProcessingComplete}
+              onClose={() => setShowUpload(false)}
+              isMinimized={isUploadMinimized}
+              onToggleMinimize={() => setIsUploadMinimized(!isUploadMinimized)}
             />
-          </div>
-        )}
+          )}
+        </AnimatePresence>
 
         {/* Search and Filters */}
         <div className="bg-surface-elevated rounded-2xl border border-border-subtle p-6 mb-8 shadow-soft">
@@ -467,36 +676,39 @@ export function DocumentManagement() {
           <div className="bg-surface-elevated rounded-2xl border border-border-subtle shadow-soft overflow-hidden">
             <div className="divide-y divide-border-subtle">
               {/* Show processing documents at the top */}
-              {processingDocuments.map((doc) => (
-                <div key={doc.id} className="p-6 bg-surface-hover">
-                  <ProcessingStatusIndicator
-                    document={doc}
-                    onDelete={() => handleProcessingComplete(doc.documentId)}
-                  />
-                </div>
-              ))}
-              {/* Then show the rest of the documents */}
-              {filteredDocuments.map((document) => {
-                const state = getProcessingState(document.id);
-                const isExpanded = expandedProcessingDocId === document.id;
-                // Find processing doc state if available
-                const processingDoc = processingDocuments.find(d => d.documentId === document.id);
-                return (
-                  <React.Fragment key={document.id}>
-                    <div
-                      className="p-6 hover:bg-surface-hover transition-all duration-200 cursor-pointer flex items-center justify-between"
-                      onClick={() => setExpandedProcessingDocId(isExpanded ? null : document.id)}
-                    >
-                      <div className="flex items-center space-x-2">
-                        {isExpanded ? (
-                          <ChevronDown className="w-4 h-4 text-primary" />
-                        ) : (
-                          <ChevronRight className="w-4 h-4 text-primary" />
-                        )}
-                        <h3 className="font-semibold text-text-primary">{document.original_filename}</h3>
-                        {getStatusBadge(document)}
-                        {getClassificationBadge(document)}
-                      </div>
+                              {/* Then show the rest of the documents */}
+                {filteredDocuments.map((document) => {
+                  const state = getProcessingState(document.id);
+                  const isExpanded = expandedDocumentId === document.id;
+                  return (
+                    <React.Fragment key={document.id}>
+                      <div
+                        className={`p-6 transition-all duration-200 cursor-pointer flex items-center justify-between group border rounded-xl ${
+                          isExpanded 
+                            ? 'bg-surface-elevated border-border-subtle shadow-sm' 
+                            : 'hover:bg-surface-hover border-transparent hover:border-primary/20'
+                        }`}
+                        onClick={() => setExpandedDocumentId(isExpanded ? null : document.id)}
+                      >
+                        <div className="flex items-center space-x-4">
+                          <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 group-hover:from-primary/20 group-hover:to-primary/10 transition-all duration-200 shadow-sm group-hover:scale-105">
+                            {isExpanded ? (
+                              <ChevronDown className="w-5 h-5 text-primary transition-transform duration-200" />
+                            ) : (
+                              <ChevronRight className="w-5 h-5 text-primary transition-transform duration-200" />
+                            )}
+                          </div>
+                          <div className="flex items-center space-x-3">
+                            <div>
+                              <h3 className="font-semibold text-text-primary text-lg">{document.original_filename}</h3>
+                              <p className="text-xs text-text-tertiary mt-1">
+                                {isExpanded ? 'Click to collapse details' : 'Click to expand details'}
+                              </p>
+                            </div>
+                            {getStatusBadge(document)}
+                            {getClassificationBadge(document)}
+                          </div>
+                        </div>
                       <div className="flex items-center space-x-2">
                         {getProcessingIcon(document)}
                         {state.needsApproval && (
@@ -516,6 +728,23 @@ export function DocumentManagement() {
                         >
                           Preview
                         </Button>
+                        
+                        {document.ocr_text && document.ocr_text.length > 50 && document.processing_status === 'completed' && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            icon={Brain}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleAIAnalysis(document);
+                            }}
+                            className={`${document.ai_analysis_response ? 'text-green-600 hover:text-green-700 hover:bg-green-50' : 'text-purple-600 hover:text-purple-700 hover:bg-purple-50'}`}
+                            title={`AI Analysis - ${document.ai_analysis_response ? 'Cached analysis available' : 'Generate new analysis'}`}
+                          >
+                            AI Analysis
+                          </Button>
+                        )}
+                        
                         <Button
                           variant="ghost"
                           size="sm"
@@ -534,41 +763,169 @@ export function DocumentManagement() {
                         >
                           Delete
                         </Button>
+                                              </div>
                       </div>
-                    </div>
-                    {/* Expanded processing details */}
-                    {isExpanded && (
-                      <div className="bg-surface p-6 border-t border-border-subtle rounded-b-2xl mt-0 flex flex-col md:flex-row gap-8">
-                        {/* Left: Document Info */}
-                        <div className="flex-1 min-w-0">
-                          <h4 className="text-lg font-semibold text-text-primary mb-2">Document Details</h4>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2 text-sm">
-                            <div><span className="font-medium text-text-tertiary">Filename:</span> {document.original_filename}</div>
-                            <div><span className="font-medium text-text-tertiary">Type:</span> {document.document_type}</div>
-                            <div><span className="font-medium text-text-tertiary">Size:</span> {(document.file_size / 1024 / 1024).toFixed(2)} MB</div>
-                            <div><span className="font-medium text-text-tertiary">Status:</span> {document.processing_status}</div>
-                            <div><span className="font-medium text-text-tertiary">Classification:</span> {document.eden_ai_classification || '—'}</div>
-                            <div><span className="font-medium text-text-tertiary">Secondary Classification:</span> {document.secondary_classification || '—'}</div>
-                            <div><span className="font-medium text-text-tertiary">Client:</span> {document.client_id || '—'}</div>
-                            <div><span className="font-medium text-text-tertiary">Created:</span> {new Date(document.created_at).toLocaleString()}</div>
-                            <div><span className="font-medium text-text-tertiary">Updated:</span> {new Date(document.updated_at).toLocaleString()}</div>
-                          </div>
-                          {document.ocr_text && (
-                            <div className="mt-4 text-xs text-text-tertiary bg-surface-elevated rounded p-2">
-                              <span className="font-medium">OCR Preview:</span> {document.ocr_text.substring(0, 200)}{document.ocr_text.length > 200 ? '...' : ''}
+                      {/* Expanded processing details */}
+                      {isExpanded && (
+                        <div className="bg-surface p-6 border-t border-border-subtle rounded-b-2xl mt-0">
+                          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                            {/* Left: Document Info */}
+                            <div className="lg:col-span-2">
+                              <h4 className="text-lg font-semibold text-text-primary mb-4 flex items-center">
+                                <FileText className="w-5 h-5 mr-2 text-primary" />
+                                Document Details
+                              </h4>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3 text-sm">
+                                <div className="flex items-center space-x-2">
+                                  <span className="font-medium text-text-tertiary min-w-0">Filename:</span>
+                                  <span className="text-text-primary truncate">{document.original_filename}</span>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <span className="font-medium text-text-tertiary min-w-0">Type:</span>
+                                  <Badge variant="neutral" size="sm">{document.document_type}</Badge>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <span className="font-medium text-text-tertiary min-w-0">Size:</span>
+                                  <span className="text-text-primary">{(document.file_size / 1024 / 1024).toFixed(2)} MB</span>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <span className="font-medium text-text-tertiary min-w-0">Status:</span>
+                                  {getStatusBadge(document)}
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <span className="font-medium text-text-tertiary min-w-0">Classification:</span>
+                                  {getClassificationBadge(document)}
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <span className="font-medium text-text-tertiary min-w-0">Secondary:</span>
+                                  <span className="text-text-primary">{document.secondary_classification || '—'}</span>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <span className="font-medium text-text-tertiary min-w-0">Client ID:</span>
+                                  <span className="text-text-primary font-mono text-xs">{document.client_id || '—'}</span>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <span className="font-medium text-text-tertiary min-w-0">Created:</span>
+                                  <span className="text-text-primary">{new Date(document.created_at).toLocaleString()}</span>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <span className="font-medium text-text-tertiary min-w-0">Updated:</span>
+                                  <span className="text-text-primary">{new Date(document.updated_at).toLocaleString()}</span>
+                                </div>
+                              </div>
+                              
+                              {/* OCR Preview */}
+                              {document.ocr_text && (
+                                <div className="mt-6">
+                                  <h5 className="text-md font-semibold text-text-primary mb-2 flex items-center">
+                                    <Eye className="w-4 h-4 mr-2 text-blue-500" />
+                                    OCR Preview
+                                  </h5>
+                                  <div className="bg-surface-elevated rounded-lg p-4 border border-border-subtle max-h-32 overflow-y-auto">
+                                    <p className="text-sm text-text-secondary leading-relaxed">
+                                      {document.ocr_text.substring(0, 300)}
+                                      {document.ocr_text.length > 300 && (
+                                        <span className="text-text-tertiary">... (truncated)</span>
+                                      )}
+                                    </p>
+                                  </div>
+                                </div>
+                              )}
                             </div>
-                          )}
-                        </div>
-                        {/* Right: Processing Progress (if available) */}
-                        {processingDoc && (
-                          <div className="flex-1 min-w-0">
-                            <h4 className="text-lg font-semibold text-text-primary mb-2">Processing Progress</h4>
-                            <ProcessingStatusIndicator document={processingDoc} />
+
+                            {/* Right: Processing Status & Actions */}
+                            <div className="lg:col-span-1">
+                              <h4 className="text-lg font-semibold text-text-primary mb-4 flex items-center">
+                                <Zap className="w-5 h-5 mr-2 text-primary" />
+                                Processing Status
+                              </h4>
+                              
+                              {/* Processing Timeline */}
+                              <div className="space-y-4">
+                                <div className="flex items-center space-x-3">
+                                  <div className="flex items-center justify-center w-8 h-8 rounded-full bg-green-100">
+                                    <CheckCircle className="w-4 h-4 text-green-600" />
+                                  </div>
+                                  <div>
+                                    <p className="text-sm font-medium text-text-primary">Document Uploaded</p>
+                                    <p className="text-xs text-text-tertiary">File stored successfully</p>
+                                  </div>
+                                </div>
+                                
+                                <div className="flex items-center space-x-3">
+                                  <div className="flex items-center justify-center w-8 h-8 rounded-full bg-green-100">
+                                    <CheckCircle className="w-4 h-4 text-green-600" />
+                                  </div>
+                                  <div>
+                                    <p className="text-sm font-medium text-text-primary">OCR Processing</p>
+                                    <p className="text-xs text-text-tertiary">Text extraction completed</p>
+                                  </div>
+                                </div>
+                                
+                                <div className="flex items-center space-x-3">
+                                  <div className="flex items-center justify-center w-8 h-8 rounded-full bg-green-100">
+                                    <CheckCircle className="w-4 h-4 text-green-600" />
+                                  </div>
+                                  <div>
+                                    <p className="text-sm font-medium text-text-primary">AI Classification</p>
+                                    <p className="text-xs text-text-tertiary">{document.eden_ai_classification || 'Unknown'}</p>
+                                  </div>
+                                </div>
+                                
+                                {document.processing_status === 'completed' && (
+                                  <div className="flex items-center space-x-3">
+                                    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-green-100">
+                                      <CheckCircle className="w-4 h-4 text-green-600" />
+                                    </div>
+                                    <div>
+                                      <p className="text-sm font-medium text-text-primary">Processing Complete</p>
+                                      <p className="text-xs text-text-tertiary">Ready for use</p>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Quick Actions */}
+                              <div className="mt-6">
+                                <h5 className="text-md font-semibold text-text-primary mb-3">Quick Actions</h5>
+                                <div className="space-y-2">
+                                  <Button
+                                    variant="secondary"
+                                    size="sm"
+                                    icon={Eye}
+                                    onClick={() => handlePreviewDocument(document.id)}
+                                    className="w-full justify-start"
+                                  >
+                                    Preview Document
+                                  </Button>
+                                  <Button
+                                    variant="secondary"
+                                    size="sm"
+                                    icon={Download}
+                                    onClick={() => handleDownloadDocument(document.id, document.original_filename)}
+                                    className="w-full justify-start"
+                                  >
+                                    Download
+                                  </Button>
+                                  {document.ocr_text && document.ocr_text.length > 50 && document.processing_status === 'completed' && (
+                                    <Button
+                                      variant="secondary"
+                                      size="sm"
+                                      icon={Brain}
+                                      onClick={() => handleAIAnalysis(document)}
+                                      className={`w-full justify-start ${document.ai_analysis_response ? 'text-green-600 hover:text-green-700 hover:bg-green-50' : ''}`}
+                                      title={`AI Analysis - ${document.ai_analysis_response ? 'Cached analysis available' : 'Generate new analysis'}`}
+                                    >
+                                      AI Analysis
+                                    </Button>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
                           </div>
-                        )}
-                      </div>
-                    )}
-                  </React.Fragment>
+                        </div>
+                      )}
+                    </React.Fragment>
                 );
               })}
             </div>
@@ -589,6 +946,190 @@ export function DocumentManagement() {
         onOverride={handleOverrideClassification}
         loading={selectedDocument ? getProcessingState(selectedDocument.id).isProcessing : false}
       />
+
+      {/* Document Preview */}
+      {showPreview && previewDocument && (
+        <EnhancedDocumentPreview
+          document={previewDocument}
+          previewUrl={previewUrl || undefined}
+          isOpen={showPreview}
+          onClose={() => {
+            setShowPreview(false);
+            setPreviewDocument(null);
+            setPreviewUrl(null);
+          }}
+          onDownload={() => handleDownloadDocument(previewDocument.id, previewDocument.original_filename)}
+        />
+      )}
+
+      {/* AI Analysis Modal */}
+      {showAIAnalysis && aiAnalysisDocument && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-surface-elevated rounded-2xl shadow-premium max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-scale-in">
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b border-border-subtle">
+              <div className="flex items-center space-x-3">
+                <div className="p-3 bg-gradient-to-br from-purple-100 to-purple-50 rounded-xl">
+                  <Brain className="w-6 h-6 text-purple-600" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-semibold text-text-primary">AI Document Analysis</h2>
+                  <p className="text-text-tertiary text-sm">
+                    {aiAnalysisDocument.original_filename}
+                    {isUsingCachedAnalysis && (
+                      <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        <CheckCircle className="w-3 h-3 mr-1" />
+                        Cached
+                      </span>
+                    )}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center space-x-2">
+                {isUsingCachedAnalysis && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => {
+                      setIsUsingCachedAnalysis(false);
+                      setAiAnalysisResult(null);
+                      handleAIAnalysis(aiAnalysisDocument);
+                    }}
+                    className="text-xs"
+                    disabled={aiAnalysisLoading}
+                  >
+                    <RefreshCw className="w-3 h-3 mr-1" />
+                    Refresh
+                  </Button>
+                )}
+                <button
+                  onClick={() => {
+                    setShowAIAnalysis(false);
+                    setAiAnalysisDocument(null);
+                    setAiAnalysisResult(null);
+                    setIsUsingCachedAnalysis(false);
+                  }}
+                  className="p-2 text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary/20 rounded-xl"
+                  aria-label="Close dialog"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-6">
+              {aiAnalysisLoading ? (
+                <div className="flex items-center justify-center h-64">
+                  <div className="text-center">
+                    <RefreshCw className="w-8 h-8 animate-spin text-purple-600 mx-auto mb-4" />
+                    <p className="text-lg font-medium text-text-primary">Analyzing Document...</p>
+                    <p className="text-sm text-text-tertiary">AI is processing your document and extracting insights</p>
+                    <div className="mt-4 space-y-2">
+                      <div className="flex items-center space-x-2 text-sm text-text-tertiary">
+                        <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse"></div>
+                        <span>Extracting document content...</span>
+                      </div>
+                      <div className="flex items-center space-x-2 text-sm text-text-tertiary">
+                        <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse"></div>
+                        <span>Analyzing tax implications...</span>
+                      </div>
+                      <div className="flex items-center space-x-2 text-sm text-text-tertiary">
+                        <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse"></div>
+                        <span>Generating recommendations...</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : aiAnalysisResult ? (
+                <div className="space-y-6">
+                  {/* Summary */}
+                  <div className="bg-gradient-to-r from-purple-50 to-purple-100 rounded-xl p-6 border border-purple-200">
+                    <h3 className="text-lg font-semibold text-purple-900 mb-3">📋 Document Summary</h3>
+                    <p className="text-purple-800 leading-relaxed">{aiAnalysisResult.summary}</p>
+                  </div>
+
+                  {/* Key Insights */}
+                  <div className="bg-surface rounded-xl p-6 border border-border-subtle">
+                    <h3 className="text-lg font-semibold text-text-primary mb-4 flex items-center">
+                      <Zap className="w-5 h-5 mr-2 text-yellow-500" />
+                      Key Insights
+                    </h3>
+                    <ul className="space-y-2">
+                      {aiAnalysisResult.keyInsights.map((insight: string, index: number) => (
+                        <li key={index} className="flex items-start space-x-3">
+                          <div className="w-2 h-2 bg-yellow-500 rounded-full mt-2 flex-shrink-0"></div>
+                          <span className="text-text-primary">{insight}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {/* Tax Implications */}
+                  <div className="bg-surface rounded-xl p-6 border border-border-subtle">
+                    <h3 className="text-lg font-semibold text-text-primary mb-4 flex items-center">
+                      <Calculator className="w-5 h-5 mr-2 text-blue-500" />
+                      Tax Implications
+                    </h3>
+                    <ul className="space-y-2">
+                      {aiAnalysisResult.taxImplications.map((implication: string, index: number) => (
+                        <li key={index} className="flex items-start space-x-3">
+                          <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
+                          <span className="text-text-primary">{implication}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {/* Compliance Considerations */}
+                  <div className="bg-surface rounded-xl p-6 border border-border-subtle">
+                    <h3 className="text-lg font-semibold text-text-primary mb-4 flex items-center">
+                      <AlertTriangle className="w-5 h-5 mr-2 text-orange-500" />
+                      Compliance Considerations
+                    </h3>
+                    <ul className="space-y-2">
+                      {aiAnalysisResult.complianceConsiderations.map((consideration: string, index: number) => (
+                        <li key={index} className="flex items-start space-x-3">
+                          <div className="w-2 h-2 bg-orange-500 rounded-full mt-2 flex-shrink-0"></div>
+                          <span className="text-text-primary">{consideration}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {/* Recommendations */}
+                  <div className="bg-surface rounded-xl p-6 border border-border-subtle">
+                    <h3 className="text-lg font-semibold text-text-primary mb-4 flex items-center">
+                      <CheckCircle className="w-5 h-5 mr-2 text-green-500" />
+                      Recommendations
+                    </h3>
+                    <ul className="space-y-2">
+                      {aiAnalysisResult.recommendations.map((rec: string, index: number) => (
+                        <li key={index} className="flex items-start space-x-3">
+                          <div className="w-2 h-2 bg-green-500 rounded-full mt-2 flex-shrink-0"></div>
+                          <span className="text-text-primary">{rec}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {/* Analysis Stats */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-surface rounded-xl p-4 border border-border-subtle text-center">
+                      <p className="text-2xl font-bold text-purple-600">{(aiAnalysisResult.confidence * 100).toFixed(0)}%</p>
+                      <p className="text-sm text-text-tertiary">Confidence</p>
+                    </div>
+                    <div className="bg-surface rounded-xl p-4 border border-border-subtle text-center">
+                      <p className="text-2xl font-bold text-blue-600">{aiAnalysisResult.processingTime}</p>
+                      <p className="text-sm text-text-tertiary">Processing Time</p>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

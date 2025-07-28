@@ -92,11 +92,11 @@ User Question: ${message.trim()}`
           }
           
           if (doc.ocr_text && doc.ocr_text.length > 0) {
-            // Include OCR text for analysis, but limit length
-            const ocrPreview = doc.ocr_text.length > 500 
-              ? doc.ocr_text.substring(0, 500) + '...' 
+            // Include OCR text for analysis, but limit length to avoid token overflow
+            const ocrPreview = doc.ocr_text.length > 2000 
+              ? doc.ocr_text.substring(0, 2000) + '...' 
               : doc.ocr_text;
-            docContext += `\n   Extracted Text: ${ocrPreview}`
+            docContext += `\n   Extracted Text:\n${ocrPreview}`
           }
         })
         
