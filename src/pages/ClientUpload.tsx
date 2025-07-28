@@ -34,7 +34,11 @@ const ClientUpload: React.FC = () => {
   console.log('ClientUpload component rendered');
   console.log('Token:', token);
 
+  // Test render - this should always show
+  console.log('About to render ClientUpload component');
+
   useEffect(() => {
+    console.log('ClientUpload useEffect triggered');
     if (!token) {
       setMessage('Invalid Link: Upload token is missing');
       setLoading(false);
@@ -66,7 +70,7 @@ const ClientUpload: React.FC = () => {
 
       setRequest(data);
       console.log('Request loaded:', data);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading document request:', error);
       setMessage('Failed to load document request');
     } finally {
@@ -141,7 +145,7 @@ const ClientUpload: React.FC = () => {
       // Reload request data to show updated status
       await loadDocumentRequest();
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Upload error:', error);
       setMessage(`Failed to upload ${file.name}: ${error.message}`);
     } finally {
@@ -182,9 +186,16 @@ const ClientUpload: React.FC = () => {
   const totalCount = request.document_request_items?.length || 0;
   const progressPercentage = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
 
+  // Test render - this should always show
+  console.log('About to return JSX from ClientUpload');
+  
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+        {/* Test div to see if component renders */}
+        <div style={{backgroundColor: 'red', color: 'white', padding: '10px', marginBottom: '10px'}}>
+          TEST: ClientUpload component is rendering!
+        </div>
         {/* Message */}
         {message && (
           <div className={`mb-4 p-4 rounded-lg ${
