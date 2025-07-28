@@ -14,8 +14,6 @@ export interface Client {
   entity_type: 'individual' | 'llc' | 'corporation' | 's_corp' | 'partnership';
   status: 'active' | 'inactive' | 'archived';
   required_documents?: string[];
-  address?: string;
-  tax_id?: string;
   notes?: string;
   created_at: string;
   updated_at: string;
@@ -115,6 +113,48 @@ export interface PaymentTransaction {
   document_id?: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface DocumentRequest {
+  id: string;
+  user_id: string;
+  client_id: string;
+  title: string;
+  description?: string;
+  document_types: string[];
+  status: 'pending' | 'partial' | 'complete' | 'overdue';
+  due_date: string;
+  upload_token: string;
+  email_sent: boolean;
+  last_reminder_sent?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DocumentRequestItem {
+  id: string;
+  request_id: string;
+  document_name: string;
+  status: 'pending' | 'uploaded';
+  uploaded_document_id?: string;
+  uploaded_at?: string;
+  created_at: string;
+}
+
+export interface EmailCommunication {
+  id: string;
+  user_id: string;
+  client_id: string;
+  request_id?: string;
+  resend_message_id: string;
+  email_type: 'initial_request' | 'reminder' | 'follow_up';
+  recipient_email: string;
+  subject: string;
+  status: 'sent' | 'delivered' | 'opened' | 'clicked' | 'bounced' | 'complained';
+  opened_at?: string;
+  clicked_at?: string;
+  bounced_at?: string;
+  created_at: string;
 }
 
 // Client operations
@@ -430,5 +470,147 @@ export const dashboardApi = {
       totalNotices: 0, // No longer tracking IRS notices separately
       totalTasks: tasks.length
     };
+  }
+};
+
+// Document Request operations
+export const documentRequests = {
+  async getAll(): Promise<DocumentRequest[]> {
+    const { data, error } = await supabase
+      .from('document_requests')
+      .select(`
+        *,
+        clients!inner(name, email)
+      `)
+      .eq('user_id', (await supabase.auth.getUser()).data.user?.id)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  },
+
+  async getById(id: string): Promise<DocumentRequest | null> {
+    const { data, error } = await supabase
+      .from('document_requests')
+      .select(`
+        *,
+        clients!inner(name, email),
+        document_request_items(*)
+      `)
+      .eq('id', id)
+      .eq('user_id', (await supabase.auth.getUser()).data.user?.id)
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  async create(request: Omit<DocumentRequest, 'id' | 'user_id' | 'upload_token' | 'email_sent' | 'created_at' | 'updated_at'>): Promise<DocumentRequest> {
+    const user = (await supabase.auth.getUser()).data.user;
+    if (!user) throw new Error('User not authenticated');
+
+    // Generate upload token
+    const { data: tokenData } = await supabase.rpc('generate_upload_token');
+    const uploadToken = tokenData || crypto.randomUUID();
+
+    const { data, error } = await supabase
+      .from('document_requests')
+      .insert({
+        ...request,
+        user_id: user.id,
+        upload_token: uploadToken,
+        email_sent: false
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    // Create document request items
+    const items = request.document_types.map(docType => ({
+      request_id: data.id,
+      document_name: docType
+    }));
+
+    await supabase
+      .from('document_request_items')
+      .insert(items);
+
+    return data;
+  },
+
+  async update(id: string, updates: Partial<DocumentRequest>): Promise<DocumentRequest> {
+    const { data, error } = await supabase
+      .from('document_requests')
+      .update(updates)
+      .eq('id', id)
+      .eq('user_id', (await supabase.auth.getUser()).data.user?.id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  async delete(id: string): Promise<void> {
+    const { error } = await supabase
+      .from('document_requests')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', (await supabase.auth.getUser()).data.user?.id);
+
+    if (error) throw error;
+  }
+};
+
+// Email Communication operations
+export const emailCommunications = {
+  async getAll(): Promise<EmailCommunication[]> {
+    const { data, error } = await supabase
+      .from('email_communications')
+      .select('*')
+      .eq('user_id', (await supabase.auth.getUser()).data.user?.id)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  },
+
+  async create(communication: Omit<EmailCommunication, 'id' | 'user_id' | 'created_at'>): Promise<EmailCommunication> {
+    const user = (await supabase.auth.getUser()).data.user;
+    if (!user) throw new Error('User not authenticated');
+
+    const { data, error } = await supabase
+      .from('email_communications')
+      .insert({
+        ...communication,
+        user_id: user.id
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  async updateStatus(messageId: string, status: EmailCommunication['status'], additionalData?: Partial<EmailCommunication>): Promise<void> {
+    const updateData: any = { status };
+    
+    if (status === 'opened' && !additionalData?.opened_at) {
+      updateData.opened_at = new Date().toISOString();
+    }
+    if (status === 'clicked' && !additionalData?.clicked_at) {
+      updateData.clicked_at = new Date().toISOString();
+    }
+    if (status === 'bounced' && !additionalData?.bounced_at) {
+      updateData.bounced_at = new Date().toISOString();
+    }
+
+    const { error } = await supabase
+      .from('email_communications')
+      .update({ ...updateData, ...additionalData })
+      .eq('resend_message_id', messageId);
+
+    if (error) throw error;
   }
 };

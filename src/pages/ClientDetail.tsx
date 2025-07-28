@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
+import { AnimatePresence } from 'framer-motion';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useClients } from '../hooks/useClients';
 import { useDocuments } from '../hooks/useDocuments';
 import { useClientNotes } from '../hooks/useClientNotes';
+import { useTransactions, Transaction } from '../hooks/useTransactions';
 import { TopBar } from '../components/organisms/TopBar';
 import { GlobalSearch } from '../components/molecules/GlobalSearch';
 import { useSearch } from '../contexts/SearchContext';
 import { DocumentList } from '../components/ui/document-list';
-import { EnhancedFileUpload } from '../components/ui/enhanced-file-upload';
+import { AestheticUpload } from '../components/ui/aesthetic-upload';
 import { AddNoteDialog } from '../components/ui/add-note-dialog';
 import { EditNoteDialog } from '../components/ui/edit-note-dialog';
 import { EditClientDialog } from '../components/ui/edit-client-dialog';
@@ -20,6 +22,7 @@ import { Button } from '../components/atoms/Button';
 import { Badge } from '../components/atoms/Badge';
 import { Input } from '../components/atoms/Input';
 import { generateTransactionId } from '../lib/utils';
+import { supabase } from '../lib/supabase';
 import { 
   ArrowLeft, 
   Edit, 
@@ -45,11 +48,12 @@ import {
   Search,
   Filter,
   X,
-  ChevronDown
+  ChevronDown,
+  Zap
 } from 'lucide-react';
 
-// Transaction interface
-interface Transaction {
+// Legacy transaction interface for backward compatibility
+interface LegacyTransaction {
   id: string;
   amount: number;
   date: string;
@@ -63,14 +67,13 @@ interface Transaction {
   updated_at: string;
 }
 
-// Reconciliation queue item interface
-interface ReconciliationQueueItem {
+// Simplified interface for transaction processing
+interface ProcessedTransaction {
   id: string;
-  newTransaction: Transaction;
-  match?: Transaction;
-  matches?: Transaction[];
-  confidence?: number;
-  type?: 'single_match' | 'multiple_matches';
+  description: string;
+  amount: number;
+  date: string;
+  source: string;
 }
 
 // String similarity calculation
@@ -121,277 +124,62 @@ const levenshteinDistance = (str1: string, str2: string): number => {
   return matrix[str2.length][str1.length];
 };
 
-// Calculate match confidence
-const calculateMatchConfidence = (transaction1: Transaction, transaction2: Transaction): number => {
-  const weights = {
-    amount: 0.4,
-    merchant: 0.3,
-    date: 0.2,
-    description: 0.1
-  };
-  
-  // Amount similarity (exact match = 1, within 1% = 0.9, etc.)
-  const amountDiff = Math.abs(transaction1.amount - transaction2.amount) / transaction1.amount;
-  const amountScore = Math.max(0, 1 - (amountDiff * 10));
-  
-  // Merchant name similarity
-  const merchantScore = calculateSimilarity(transaction1.merchant_name, transaction2.merchant_name);
-  
-  // Date proximity (same day = 1, 1 day apart = 0.8, etc.)
-  const dateDiff = Math.abs(new Date(transaction1.date).getTime() - new Date(transaction2.date).getTime()) / (24 * 60 * 60 * 1000);
-  const dateScore = Math.max(0, 1 - (dateDiff * 0.2));
-  
-  // Description similarity
-  const descriptionScore = calculateSimilarity(transaction1.description, transaction2.description);
-  
-  return (
-    weights.amount * amountScore +
-    weights.merchant * merchantScore +
-    weights.date * dateScore +
-    weights.description * descriptionScore
-  );
+// Simplified transaction processing for real database transactions
+const processTransactions = (transactions: Transaction[]) => {
+  return transactions.map(transaction => ({
+    ...transaction,
+    displayAmount: transaction.amount ? `$${transaction.amount.toFixed(2)}` : 'N/A',
+    displayDate: transaction.transaction_date ? new Date(transaction.transaction_date).toLocaleDateString() : 'N/A',
+    displayDescription: transaction.description || 'No description',
+    displayCounterparty: transaction.counterparty || 'Unknown'
+  }));
 };
 
-// Auto-reconciliation function
-const attemptAutoReconciliation = (newTransaction: Transaction, existingTransactions: Transaction[]) => {
-  const potentialMatches = existingTransactions.filter(existing => {
-    // Skip already reconciled transactions
-    if (existing.reconciled_with || existing.status === 'reconciled') return false;
-    
-    // Amount matching with 5% tolerance
-    const amountMatch = Math.abs(existing.amount - newTransaction.amount) <= (newTransaction.amount * 0.05);
-    
-    // Date matching within 7 days
-    const existingDate = new Date(existing.date);
-    const newDate = new Date(newTransaction.date);
-    const dateDiff = Math.abs(existingDate.getTime() - newDate.getTime());
-    const dateMatch = dateDiff <= (7 * 24 * 60 * 60 * 1000);
-    
-    // Merchant name similarity
-    const merchantMatch = calculateSimilarity(existing.merchant_name, newTransaction.merchant_name) > 0.8;
-    
-    return amountMatch && dateMatch && merchantMatch;
-  });
-  
-  if (potentialMatches.length === 1) {
-    const match = potentialMatches[0];
-    const confidence = calculateMatchConfidence(newTransaction, match);
-    
-    if (confidence > 0.95) {
-      return { action: 'auto_reconcile', match, confidence };
-    } else if (confidence > 0.75) {
-      return { action: 'review_required', match, confidence };
-    }
-  } else if (potentialMatches.length > 1) {
-    return { action: 'multiple_matches', matches: potentialMatches };
-  }
-  
-  return { action: 'no_match' };
-};
-
-// Status Badge Component
-const StatusBadge: React.FC<{ transaction: Transaction }> = ({ transaction }) => {
-  const statusConfig = {
-    'confirmed': { 
-      color: 'bg-green-100 text-green-800 border-green-200', 
-      icon: CheckCircle2,
-      label: 'Confirmed (Bank)' 
-    },
-    'high_confidence': { 
-      color: 'bg-blue-100 text-blue-800 border-blue-200', 
-      icon: TrendingUp,
-      label: 'High Confidence (Receipt)' 
-    },
-    'pending': { 
-      color: 'bg-yellow-100 text-yellow-800 border-yellow-200', 
-      icon: Clock,
-      label: 'Pending (Invoice)' 
-    },
-    'reconciled': { 
-      color: 'bg-purple-100 text-purple-800 border-purple-200', 
-      icon: Link2,
-      label: 'Reconciled' 
-    },
-    'needs_review': { 
-      color: 'bg-red-100 text-red-800 border-red-200', 
-      icon: AlertCircle,
-      label: 'Needs Review' 
-    }
-  };
-  
-  const config = statusConfig[transaction.status] || statusConfig['pending'];
-  const Icon = config.icon;
-  
+// Simple transaction display component
+const TransactionRow: React.FC<{ transaction: Transaction }> = ({ transaction }) => {
   return (
-    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${config.color}`}>
-      <Icon className="w-3 h-3 mr-1" />
-      {config.label}
-    </span>
-  );
-};
-
-// Confidence Indicator Component
-const ConfidenceIndicator: React.FC<{ confidence: number }> = ({ confidence }) => {
-  const getConfidenceConfig = (level: number) => {
-    if (level >= 95) return { color: 'text-green-600', bg: 'bg-green-100', label: 'Excellent' };
-    if (level >= 85) return { color: 'text-blue-600', bg: 'bg-blue-100', label: 'High' };
-    if (level >= 70) return { color: 'text-yellow-600', bg: 'bg-yellow-100', label: 'Medium' };
-    return { color: 'text-red-600', bg: 'bg-red-100', label: 'Low' };
-  };
-  
-  const config = getConfidenceConfig(confidence);
-  
-  return (
-    <div className="flex items-center space-x-1">
-      <div className={`w-2 h-2 rounded-full ${config.bg}`} />
-      <span className={`text-xs font-medium ${config.color}`}>
-        {confidence}% {config.label}
-      </span>
-    </div>
-  );
-};
-
-// Transaction Preview Component
-const TransactionPreview: React.FC<{ 
-  transaction: Transaction; 
-  title: string; 
-  badgeColor: string; 
-}> = ({ transaction, title, badgeColor }) => {
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <p className="font-medium text-gray-700 text-sm">{title}:</p>
-        <span className={`px-2 py-1 rounded-full text-xs ${badgeColor}`}>
-          {transaction.source_document_type}
-        </span>
+    <div className="flex items-center space-x-4 p-4 border-b border-border-subtle last:border-b-0">
+      <div className="flex-1">
+        <div className="font-medium text-text-primary">
+          {transaction.description || 'No description'}
+        </div>
+        <div className="text-sm text-text-tertiary">
+          {transaction.counterparty || 'Unknown'} • {transaction.transaction_date ? new Date(transaction.transaction_date).toLocaleDateString() : 'No date'}
+        </div>
       </div>
-      <div className="text-sm space-y-1">
-        <p className="font-medium">{transaction.description}</p>
-        <p className="text-gray-600">{transaction.merchant_name}</p>
-        <div className="flex justify-between">
-          <span>${transaction.amount.toFixed(2)}</span>
-          <span>{transaction.date}</span>
+      <div className="text-right">
+        <div className="font-semibold text-text-primary">
+          {transaction.amount ? `$${transaction.amount.toFixed(2)}` : 'N/A'}
+        </div>
+        <div className="text-xs text-text-tertiary">
+          {transaction.document_source.replace('_', ' ')}
         </div>
       </div>
     </div>
   );
 };
 
-// Reconciliation Item Component
-const ReconciliationItem: React.FC<{
-  item: ReconciliationQueueItem;
-  onApprove: () => void;
-  onReject: () => void;
-}> = ({ item, onApprove, onReject }) => {
-  const confidenceColor = (item.confidence || 0) >= 0.9 ? 'text-green-600' :
-                         (item.confidence || 0) >= 0.7 ? 'text-yellow-600' : 'text-red-600';
+// Simple transaction summary component
+const TransactionSummary: React.FC<{ transactions: Transaction[] }> = ({ transactions }) => {
+  const totalAmount = transactions.reduce((sum, t) => sum + (t.amount || 0), 0);
+  const uniqueSources = [...new Set(transactions.map(t => t.document_source))];
   
-  return (
-    <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
-      <div className="flex items-center justify-between mb-3">
-        <h5 className="font-medium text-amber-800">Potential Match Found</h5>
-        <div className="flex items-center space-x-2">
-          <span className={`text-xs font-medium ${confidenceColor}`}>
-            {Math.round((item.confidence || 0) * 100)}% confidence
-          </span>
-          <div className={`w-2 h-2 rounded-full ${
-            (item.confidence || 0) >= 0.9 ? 'bg-green-500' :
-            (item.confidence || 0) >= 0.7 ? 'bg-yellow-500' : 'bg-red-500'
-          }`} />
-        </div>
-      </div>
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-        <TransactionPreview 
-          transaction={item.newTransaction} 
-          title="New Transaction"
-          badgeColor="bg-blue-100 text-blue-800"
-        />
-        {item.match && (
-          <TransactionPreview 
-            transaction={item.match} 
-            title="Existing Transaction"
-            badgeColor="bg-gray-100 text-gray-800"
-          />
-        )}
-      </div>
-      
-      <div className="flex space-x-3">
-        <button
-          onClick={onApprove}
-          className="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
-        >
-          Approve Match
-        </button>
-        <button
-          onClick={onReject}
-          className="flex-1 bg-gray-200 text-gray-800 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-300 transition-colors"
-        >
-          Keep Separate
-        </button>
-      </div>
-    </div>
-  );
-};
-
-// Reconciliation Queue Component
-const ReconciliationQueue: React.FC<{
-  reconciliationQueue: ReconciliationQueueItem[];
-  onApprove: (id: string) => void;
-  onReject: (id: string) => void;
-  onApproveAll: () => void;
-  onRejectAll: () => void;
-}> = ({ reconciliationQueue, onApprove, onReject, onApproveAll, onRejectAll }) => {
   return (
     <div className="bg-surface-elevated rounded-2xl border border-border-subtle p-6 shadow-soft">
-      <div className="flex items-center justify-between mb-4">
-        <h4 className="font-semibold text-text-primary">Reconciliation Queue</h4>
-        <div className="flex items-center space-x-3">
-          <span className="text-sm text-text-secondary">
-            {reconciliationQueue.length} item(s) pending
-          </span>
-          {reconciliationQueue.length > 0 && (
-            <div className="flex space-x-2">
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={onApproveAll}
-                className="text-green-600 hover:text-green-700 hover:bg-green-50"
-              >
-                Approve All High Confidence
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={onRejectAll}
-                className="text-red-600 hover:text-red-700 hover:bg-red-50"
-              >
-                Reject All
-              </Button>
-            </div>
-          )}
+      <h4 className="font-semibold text-text-primary mb-4">Transaction Summary</h4>
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <p className="text-sm text-text-tertiary">Total Transactions</p>
+          <p className="text-2xl font-semibold text-text-primary">{transactions.length}</p>
+        </div>
+        <div>
+          <p className="text-sm text-text-tertiary">Total Amount</p>
+          <p className="text-2xl font-semibold text-text-primary">${totalAmount.toFixed(2)}</p>
         </div>
       </div>
-      
-      {reconciliationQueue.length > 0 ? (
-        <div className="space-y-4">
-          {reconciliationQueue.map(item => (
-            <ReconciliationItem 
-              key={item.id} 
-              item={item}
-              onApprove={() => onApprove(item.id)}
-              onReject={() => onReject(item.id)}
-            />
-          ))}
-        </div>
-      ) : (
-        <div className="text-center py-8">
-          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <CheckCircle2 className="w-8 h-8 text-green-600" />
-          </div>
-          <p className="text-text-tertiary">All transactions are reconciled</p>
-        </div>
-      )}
+      <div className="mt-4">
+        <p className="text-sm text-text-tertiary">Sources: {uniqueSources.join(', ')}</p>
+      </div>
     </div>
   );
 };
@@ -544,9 +332,10 @@ const TransactionFilters: React.FC<{
 export function ClientDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { clients, loading: clientsLoading, updateClient } = useClients();
+  const { clients, loading: clientsLoading, updateClient, refreshClients } = useClients();
   const { documents, loading: documentsLoading, refreshDocuments, getDocumentPreviewURL, downloadDocument } = useDocuments(id);
   const { notes, loading: notesLoading, createNote, updateNote, deleteNote } = useClientNotes(id || '');
+  const { transactions, loading: transactionsLoading, refreshTransactions, createTransaction } = useTransactions(id);
   const { isSearchOpen, closeSearch } = useSearch();
   const toast = useToast();
 
@@ -562,200 +351,41 @@ export function ClientDetail() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
-
-  // Transaction and reconciliation state
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [pendingTransactions, setPendingTransactions] = useState<Transaction[]>([]);
-  const [reconciliationQueue, setReconciliationQueue] = useState<ReconciliationQueueItem[]>([]);
-  const [isProcessingDocuments, setIsProcessingDocuments] = useState(false);
-  const [processingMessage, setProcessingMessage] = useState('');
   const [filters, setFilters] = useState<any>({});
+  const [previewDocument, setPreviewDocument] = useState<any | null>(null);
+  const [expandedDocumentId, setExpandedDocumentId] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<{ [key: string]: { progress: number; status: string; error?: string } }>({});
+  const [isUploadMinimized, setIsUploadMinimized] = useState(false);
+  const [activeUploads, setActiveUploads] = useState<string[]>([]);
 
   const client = clients.find(c => c.id === id);
 
-  // Create transaction helper function
-  const createTransaction = (data: any): Transaction => {
+
+
+  // Simple transaction creation helper
+  const createLocalTransaction = (data: any): ProcessedTransaction => {
     return {
       id: generateTransactionId(),
+      description: data.description || 'New Transaction',
       amount: data.amount || 0,
       date: data.date || new Date().toISOString().split('T')[0],
-      description: data.description || '',
-      merchant_name: data.merchant_name || '',
-      source_document_type: data.source_document_type || 'manual',
-      status: data.status || 'pending',
-      confidence: data.confidence || 70,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
+      source: data.source || 'manual'
     };
   };
 
-  // Process financial documents with reconciliation
-  const handleProcessFinancialDocuments = async (files: File[]) => {
-    setIsProcessingDocuments(true);
-    
+  // Transaction handling using the hook
+  const handleAddTransaction = async (transactionData: any) => {
     try {
-      console.log('🔄 Starting financial document processing...');
-      
-      // Mock financial document processing
-      const financialDocs = documents.filter(doc => {
-        // Check if document type suggests financial content
-        const hasFinancialType = ['receipt', 'bank_statement', 'invoice', '1099', 'w2', 'other'].includes(doc.document_type);
-        
-        // Check if Eden AI classified it as Financial Document
-        const hasFinancialClassification = doc.eden_ai_classification === 'Financial' || 
-                                         doc.eden_ai_classification === 'Financial Document';
-        
-        // Must have OCR text to process
-        const hasOcrText = doc.ocr_text && doc.ocr_text.trim().length > 0;
-        
-        return (hasFinancialType || hasFinancialClassification) && hasOcrText;
-      });
-      
-      console.log('📄 Found financial documents:', financialDocs.length);
-      
-      if (financialDocs.length === 0) {
-        console.log('⚠️ No financial documents found');
-        toast.info('No Financial Documents', 'No bank statements, receipts, or invoices found to process');
-        setIsProcessingDocuments(false);
-        return;
+      const result = await createTransaction(transactionData);
+      if (result.success) {
+        toast.success('Transaction Added', 'Transaction has been added successfully');
+      } else {
+        toast.error('Failed to add transaction', result.error);
       }
-      
-      console.log('🤖 Processing documents with AI...');
-      
-      // Simulate AI processing delay
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Generate mock transactions from documents
-    // Add immediate user feedback
-    toast.info('Processing Started', 'Analyzing financial documents...');
-    
-      const newTransactions = [];
-      
-      financialDocs.forEach((doc, index) => {
-        // Generate 2-4 transactions per document
-        const transactionCount = Math.floor(Math.random() * 3) + 2;
-        
-        for (let i = 0; i < transactionCount; i++) {
-          const transaction = createTransaction(doc, i);
-          newTransactions.push(transaction);
-        }
-      });
-      
-      console.log('✅ Generated transactions:', newTransactions.length);
-      
-      // Add new transactions to state
-      setTransactions(prev => [...prev, ...newTransactions]);
-      
-      // Attempt auto-reconciliation
-      console.log('🔄 Starting auto-reconciliation...');
-      const reconciliationResults = attemptAutoReconciliation(newTransactions);
-      console.log('🔗 Auto-reconciliation results:', reconciliationResults);
-      
-      // Update reconciliation queue
-      setReconciliationQueue(prev => [...prev, ...reconciliationResults.needsReview]);
-      
-      // Show success message
-      toast.success(
-        'Documents Processed', 
-        `Generated ${newTransactions.length} transactions from ${financialDocs.length} documents. ${reconciliationResults.autoReconciled} auto-reconciled, ${reconciliationResults.needsReview.length} need review.`
-      );
-      
-      console.log('✅ Financial document processing complete');
-      
     } catch (error) {
-      console.error('Failed to process financial documents:', error);
-      toast.error('Processing Failed', error.message || 'An unexpected error occurred');
-    } finally {
-      setIsProcessingDocuments(false);
+      console.error('Error adding transaction:', error);
+      toast.error('Failed to add transaction', 'An unexpected error occurred');
     }
-  };
-
-  // Reconciliation approval/rejection functions
-  const approveReconciliation = (queueItemId: string) => {
-    const queueItem = reconciliationQueue.find(item => item.id === queueItemId);
-    if (!queueItem || !queueItem.match) return;
-    
-    const { newTransaction, match } = queueItem;
-    
-    // Update both transactions to reconciled status
-    const reconciledNewTransaction = {
-      ...newTransaction,
-      status: 'reconciled' as const,
-      reconciled_with: match.id,
-      updated_at: new Date().toISOString()
-    };
-    
-    // Add new transaction to main list
-    setTransactions(prev => [
-      ...prev.map(t => 
-        t.id === match.id 
-          ? { ...t, status: 'reconciled' as const, reconciled_with: newTransaction.id, updated_at: new Date().toISOString() }
-          : t
-      ),
-      reconciledNewTransaction
-    ]);
-    
-    // Remove from pending transactions if it exists
-    setPendingTransactions(prev => prev.filter(t => t.id !== newTransaction.id));
-    
-    // Remove from reconciliation queue
-    setReconciliationQueue(prev => prev.filter(item => item.id !== queueItemId));
-    
-    // Show success message
-    toast.success('Reconciliation Approved', 'Transactions successfully reconciled!');
-  };
-
-  const rejectReconciliation = (queueItemId: string) => {
-    const queueItem = reconciliationQueue.find(item => item.id === queueItemId);
-    if (!queueItem) return;
-    
-    const { newTransaction } = queueItem;
-    
-    // Add new transaction as separate entry
-    setTransactions(prev => [...prev, {
-      ...newTransaction,
-      status: newTransaction.status === 'pending' ? 'needs_review' : newTransaction.status,
-      updated_at: new Date().toISOString()
-    }]);
-    
-    // Remove from pending transactions
-    setPendingTransactions(prev => prev.filter(t => t.id !== newTransaction.id));
-    
-    // Remove from reconciliation queue
-    setReconciliationQueue(prev => prev.filter(item => item.id !== queueItemId));
-    
-    toast.info('Reconciliation Rejected', 'Transactions kept separate');
-  };
-
-  // Bulk reconciliation functions
-  const approveAllReconciliations = () => {
-    const highConfidenceItems = reconciliationQueue.filter(item => (item.confidence || 0) >= 0.85);
-    
-    if (highConfidenceItems.length === 0) {
-      toast.warning('No Matches', 'No high-confidence matches to approve');
-      return;
-    }
-    
-    console.log('🔍 Found financial documents for processing:', financialDocs.length);
-      financialDocs.forEach(doc => {
-        console.log(`  - ${doc.original_filename} (${doc.document_type}) - Classification: ${doc.eden_ai_classification} - OCR length: ${doc.ocr_text?.length || 0}`);
-      });
-    
-    highConfidenceItems.forEach(item => {
-      approveReconciliation(item.id);
-    });
-    
-    toast.success('Bulk Approval', `Approved ${highConfidenceItems.length} high-confidence matches`);
-  };
-
-  const rejectAllReconciliations = () => {
-    const currentQueue = [...reconciliationQueue];
-    
-    currentQueue.forEach(item => {
-      rejectReconciliation(item.id);
-    });
-    
-    toast.info('Bulk Rejection', `Rejected ${currentQueue.length} pending reconciliations`);
   };
 
   // Filter transactions
@@ -765,44 +395,23 @@ export function ClientDetail() {
       if (filters.search) {
         const searchTerm = filters.search.toLowerCase();
         const matchesSearch = 
-          transaction.description.toLowerCase().includes(searchTerm) ||
-          transaction.merchant_name.toLowerCase().includes(searchTerm) ||
-          transaction.amount.toString().includes(searchTerm);
+          (transaction.description?.toLowerCase().includes(searchTerm) || false) ||
+          (transaction.counterparty?.toLowerCase().includes(searchTerm) || false) ||
+          (transaction.amount?.toString().includes(searchTerm) || false);
         if (!matchesSearch) return false;
-      }
-      
-      // Status filter
-      if (filters.status && filters.status !== 'all') {
-        if (transaction.status !== filters.status) return false;
       }
       
       // Document type filter
       if (filters.documentType && filters.documentType !== 'all') {
-        if (transaction.source_document_type !== filters.documentType) return false;
-      }
-      
-      // Confidence filter
-      if (filters.confidence && filters.confidence !== 'all') {
-        const confidence = transaction.confidence || 0;
-        switch (filters.confidence) {
-          case 'high':
-            if (confidence < 85) return false;
-            break;
-          case 'medium':
-            if (confidence < 70 || confidence >= 85) return false;
-            break;
-          case 'low':
-            if (confidence >= 70) return false;
-            break;
-        }
+        if (transaction.document_source !== filters.documentType) return false;
       }
       
       // Date range filter
-      if (filters.dateFrom) {
-        if (new Date(transaction.date) < new Date(filters.dateFrom)) return false;
+      if (filters.dateFrom && transaction.transaction_date) {
+        if (new Date(transaction.transaction_date) < new Date(filters.dateFrom)) return false;
       }
-      if (filters.dateTo) {
-        if (new Date(transaction.date) > new Date(filters.dateTo)) return false;
+      if (filters.dateTo && transaction.transaction_date) {
+        if (new Date(transaction.transaction_date) > new Date(filters.dateTo)) return false;
       }
       
       return true;
@@ -811,9 +420,9 @@ export function ClientDetail() {
 
   // Event handlers
   const handleUploadComplete = (documentIds: string[]) => {
-    toast.success('Upload Complete', `${documentIds.length} document(s) uploaded successfully`);
+    toast.success('Processing Complete', `${documentIds.length} document(s) processed successfully`);
     refreshDocuments();
-    setShowUpload(false);
+    // Don't close the modal here - let the AestheticUpload component handle it
   };
 
   const handleUploadError = (error: string) => {
@@ -872,6 +481,45 @@ export function ClientDetail() {
     }
   };
 
+  // Function to trigger financial processing for a document
+  const handleProcessFinancialDocument = async (documentId: string) => {
+    try {
+      toast.info('Processing document...');
+      
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('No valid session');
+      }
+
+      const functionUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/process-financial`;
+      const response = await fetch(functionUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          document_id: documentId,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Processing failed: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      console.log('Financial processing result:', result);
+      
+      toast.success('Document processed successfully!');
+      refreshTransactions();
+      refreshDocuments();
+    } catch (error: any) {
+      console.error('Processing error:', error);
+      toast.error(`Processing failed: ${error.message}`);
+    }
+  };
+
   const handlePreviewDocument = async (documentId: string) => {
     try {
       const result = await getDocumentPreviewURL(documentId);
@@ -899,16 +547,7 @@ export function ClientDetail() {
     }
   };
 
-  const handleAddTransaction = async (transactionData: any) => {
-    const newTransaction = createTransaction({
-      ...transactionData,
-      source_document_type: 'manual',
-      status: 'high_confidence'
-    });
-    
-    setTransactions(prev => [...prev, newTransaction]);
-    toast.success('Transaction Added', 'Transaction has been added successfully');
-  };
+
 
   if (clientsLoading) {
     return (
@@ -1088,14 +727,8 @@ export function ClientDetail() {
                 </div>
               </div>
 
-              {/* Reconciliation Queue */}
-              <ReconciliationQueue
-                reconciliationQueue={reconciliationQueue}
-                onApprove={approveReconciliation}
-                onReject={rejectReconciliation}
-                onApproveAll={approveAllReconciliations}
-                onRejectAll={rejectAllReconciliations}
-              />
+              {/* Transaction Summary */}
+              <TransactionSummary transactions={transactions} />
 
               {/* Recent Activity */}
               <div className="bg-surface-elevated rounded-2xl border border-border-subtle p-6 shadow-soft">
@@ -1184,35 +817,41 @@ export function ClientDetail() {
           <div className="space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-xl font-semibold text-text-primary">Documents</h2>
-              <Button 
-                icon={Upload}
-                onClick={() => setShowUpload(true)}
-                className="bg-primary text-gray-900 hover:bg-primary-hover"
-              >
-                Upload Documents
-              </Button>
+              <div className="flex space-x-3">
+                {/* Process button for Sarah Johnson's invoice */}
+                {client?.name === 'Sarah Johnson' && (
+                  <Button
+                    onClick={() => handleProcessFinancialDocument('f1f72536-5318-41c0-8920-b607ab7cb25b')}
+                    variant="secondary"
+                    className="flex items-center space-x-2"
+                  >
+                    <Zap className="w-4 h-4" />
+                    <span>Process Invoice</span>
+                  </Button>
+                )}
+                <Button 
+                  icon={Upload}
+                  onClick={() => setShowUpload(true)}
+                  className="bg-primary text-gray-900 hover:bg-primary-hover"
+                >
+                  Upload Documents
+                </Button>
+              </div>
             </div>
 
-            {showUpload && (
-              <div className="bg-surface-elevated rounded-2xl border border-border-subtle p-6 shadow-soft">
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-lg font-semibold text-text-primary">Upload Documents</h3>
-                  <Button
-                    variant="ghost"
-                    onClick={() => setShowUpload(false)}
-                    className="text-text-secondary hover:text-text-primary"
-                  >
-                    <X className="w-5 h-5" />
-                  </Button>
-                </div>
-                
-                <EnhancedFileUpload
+            {/* Aesthetic Upload Modal */}
+            <AnimatePresence>
+              {showUpload && (
+                <AestheticUpload
                   clientId={id!}
                   onUploadComplete={handleUploadComplete}
                   onUploadError={handleUploadError}
+                  onClose={() => setShowUpload(false)}
+                  isMinimized={isUploadMinimized}
+                  onToggleMinimize={() => setIsUploadMinimized(!isUploadMinimized)}
                 />
-              </div>
-            )}
+              )}
+            </AnimatePresence>
 
             <DocumentList
               documents={documents}
@@ -1228,13 +867,6 @@ export function ClientDetail() {
             <div className="flex justify-between items-center">
               <h2 className="text-xl font-semibold text-text-primary">Transactions</h2>
               <div className="flex space-x-3">
-                <Button 
-                  variant="secondary"
-                  icon={Upload}
-                  onClick={() => setShowUpload(true)}
-                >
-                  Process Documents
-                </Button>
                 <Button 
                   icon={Plus}
                   onClick={() => setShowAddTransaction(true)}
@@ -1273,23 +905,7 @@ export function ClientDetail() {
               )}
             </div>
 
-            {/* Reconciliation Queue */}
-            {reconciliationQueue.length > 0 && (
-              <ReconciliationQueue
-                reconciliationQueue={reconciliationQueue}
-                onApprove={approveReconciliation}
-                onReject={rejectReconciliation}
-                onApproveAll={approveAllReconciliations}
-                onRejectAll={rejectAllReconciliations}
-              />
-            )}
 
-            {/* Processing Message */}
-            {processingMessage && (
-              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-                <p className="text-blue-800">{processingMessage}</p>
-              </div>
-            )}
 
             {/* Transactions List */}
             {filteredTransactions.length > 0 ? (
@@ -1302,19 +918,19 @@ export function ClientDetail() {
                           Description
                         </th>
                         <th className="px-6 py-4 text-left text-xs font-semibold text-text-tertiary uppercase tracking-wider">
+                          Counterparty
+                        </th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-text-tertiary uppercase tracking-wider">
                           Amount
                         </th>
                         <th className="px-6 py-4 text-left text-xs font-semibold text-text-tertiary uppercase tracking-wider">
                           Date
                         </th>
                         <th className="px-6 py-4 text-left text-xs font-semibold text-text-tertiary uppercase tracking-wider">
-                          Status
-                        </th>
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-text-tertiary uppercase tracking-wider">
-                          Confidence
-                        </th>
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-text-tertiary uppercase tracking-wider">
                           Source
+                        </th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-text-tertiary uppercase tracking-wider">
+                          Type
                         </th>
                       </tr>
                     </thead>
@@ -1323,27 +939,31 @@ export function ClientDetail() {
                         <tr key={transaction.id} className="hover:bg-surface-hover transition-colors duration-200">
                           <td className="px-6 py-4">
                             <div>
-                              <div className="font-medium text-text-primary">{transaction.description}</div>
-                              <div className="text-sm text-text-tertiary">{transaction.merchant_name}</div>
+                              <div className="font-medium text-text-primary">
+                                {transaction.description || 'No description'}
+                              </div>
+                              {transaction.reference_number && (
+                                <div className="text-sm text-text-tertiary">Ref: {transaction.reference_number}</div>
+                              )}
                             </div>
                           </td>
+                          <td className="px-6 py-4 text-text-secondary">
+                            {transaction.counterparty || 'Unknown'}
+                          </td>
                           <td className="px-6 py-4 font-semibold text-text-primary">
-                            ${transaction.amount.toFixed(2)}
+                            {transaction.amount ? `$${transaction.amount.toFixed(2)}` : 'N/A'}
                           </td>
                           <td className="px-6 py-4 text-text-secondary">
-                            {new Date(transaction.date).toLocaleDateString()}
+                            {transaction.transaction_date ? new Date(transaction.transaction_date).toLocaleDateString() : 'N/A'}
                           </td>
                           <td className="px-6 py-4">
-                            <StatusBadge transaction={transaction} />
+                            <Badge variant="neutral" size="sm">
+                              {transaction.document_source.replace('_', ' ')}
+                            </Badge>
                           </td>
                           <td className="px-6 py-4">
-                            {transaction.confidence && (
-                              <ConfidenceIndicator confidence={transaction.confidence} />
-                            )}
-                          </td>
-                          <td className="px-6 py-4">
-                            <Badge variant="neutral" size="sm" className="capitalize">
-                              {transaction.source_document_type.replace('_', ' ')}
+                            <Badge variant="neutral" size="sm">
+                              {transaction.transaction_type || 'Unknown'}
                             </Badge>
                           </td>
                         </tr>
@@ -1428,7 +1048,7 @@ export function ClientDetail() {
                     
                     <div className="flex items-center justify-between text-sm">
                       <div className="flex items-center space-x-4">
-                        <Badge variant="neutral" size="sm" className="capitalize">
+                        <Badge variant="neutral" size="sm">
                           {note.category.replace('_', ' ')}
                         </Badge>
                         {note.tags.length > 0 && (

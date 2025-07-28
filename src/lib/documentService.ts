@@ -36,6 +36,18 @@ export class DocumentService {
         documentType: options.documentType
       });
       
+      // Validate that clientId is provided
+      if (!options.clientId) {
+        const error = new Error('Client ID is required for document upload');
+        onProgress?.({
+          file,
+          progress: 0,
+          status: 'error',
+          error: error.message,
+        });
+        return { data: null, error };
+      }
+
       // Validate file
       const validation = validateFile(file);
       if (!validation.isValid) {

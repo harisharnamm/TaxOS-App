@@ -6,5 +6,8 @@ export type {
   ChatMessage,
   Task,
   AIInsight,
-  PaymentTransaction
+  PaymentTransaction,
+  DocumentRequest,
+  DocumentRequestItem,
+  EmailCommunication
 } from '../lib/database';

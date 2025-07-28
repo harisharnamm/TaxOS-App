@@ -374,7 +374,10 @@ if (classificationUpdateError) {
           // Update status to failed
           await supabaseClient
             .from('documents')
-            .update({ processing_status: 'failed' })
+            .update({ 
+              processing_status: 'failed',
+              is_processed: true
+            })
             .eq('id', document_id)
         } else {
           const processingResult = await processingResponse.json()
@@ -383,7 +386,10 @@ if (classificationUpdateError) {
           // Update status to completed
           await supabaseClient
             .from('documents')
-            .update({ processing_status: 'completed' })
+            .update({ 
+              processing_status: 'completed',
+              is_processed: true
+            })
             .eq('id', document_id)
         }
       } catch (processingError) {
@@ -392,7 +398,10 @@ if (classificationUpdateError) {
         // Update status to failed
         await supabaseClient
           .from('documents')
-          .update({ processing_status: 'failed' })
+          .update({ 
+            processing_status: 'failed',
+            is_processed: true
+          })
           .eq('id', document_id)
       }
       
@@ -416,7 +425,10 @@ if (classificationUpdateError) {
       // Update processing status to classified (waiting for manual review)
       await supabaseClient
         .from('documents')
-        .update({ processing_status: 'classified' })
+        .update({ 
+          processing_status: 'classified',
+          is_processed: true
+        })
         .eq('id', document_id)
       
       return new Response(
