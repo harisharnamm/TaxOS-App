@@ -76,9 +76,9 @@ serve(async (req) => {
       );
     }
 
-    // Generate upload URL
+    // Generate upload URL - encode the token to handle special characters
     const appUrl = Deno.env.get('APP_URL') || 'https://taxos-rcm4uvflc-harisharnams-projects.vercel.app';
-    const uploadUrl = `${appUrl}/upload/${request.upload_token}`;
+    const uploadUrl = `${appUrl}/upload/${encodeURIComponent(request.upload_token)}`;
 
     // Generate email HTML
     const dueDate = new Date(request.due_date).toLocaleDateString();
