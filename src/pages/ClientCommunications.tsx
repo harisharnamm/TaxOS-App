@@ -718,7 +718,7 @@ export function ClientCommunications() {
                         <div className="w-32">
                           <div className="flex items-center justify-between mb-1">
                             <span className="text-xs text-text-tertiary">
-                              {request.documents.filter(doc => doc.status === 'uploaded').length}/{request.documents.length}
+                              {request.document_request_items ? request.document_request_items.filter(doc => doc.status === 'uploaded').length : 0}/{request.document_request_items ? request.document_request_items.length : 0}
                             </span>
                             <span className="text-xs font-medium text-text-secondary">
                               {getCompletionPercentage(request)}%

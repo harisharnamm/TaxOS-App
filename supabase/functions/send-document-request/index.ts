@@ -4,7 +4,7 @@ import { Resend } from 'https://esm.sh/resend@3.1.0';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, svix-id, svix-timestamp, svix-signature',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
