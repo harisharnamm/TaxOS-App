@@ -262,6 +262,27 @@ export function ClientCommunications() {
         }}
       />
       
+      {/* Test button for debugging */}
+      <div className="max-w-content mx-auto px-4 sm:px-6 md:px-8 py-2">
+        <Button
+          onClick={async () => {
+            console.log('Testing database connection...');
+            try {
+              const requests = await documentRequestsApi.getAll();
+              console.log('Database test result:', requests);
+              toast.success('Test', `Found ${requests.length} document requests`);
+            } catch (error) {
+              console.error('Database test error:', error);
+              toast.error('Test Error', 'Database connection failed');
+            }
+          }}
+          variant="secondary"
+          size="sm"
+        >
+          Test Database
+        </Button>
+      </div>
+      
       {/* Global Search */}
       <GlobalSearch isOpen={isSearchOpen} onClose={closeSearch} />
       
