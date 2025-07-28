@@ -79,6 +79,15 @@ export function ClientCommunications() {
       try {
         setIsLoading(true);
         console.log('Loading document requests...');
+        
+        // First, mark any overdue requests
+        try {
+          await supabase.rpc('mark_overdue_requests');
+          console.log('Marked overdue requests');
+        } catch (overdueError) {
+          console.warn('Could not mark overdue requests:', overdueError);
+        }
+        
         console.log('documentRequestsApi:', documentRequestsApi);
         const requests = await documentRequestsApi.getAll();
         console.log('Loaded document requests:', requests);
@@ -234,6 +243,40 @@ export function ClientCommunications() {
     }
   };
 
+  const handleViewDocument = (documentId?: string) => {
+    if (!documentId) {
+      toast.error('Document Not Found', 'Document ID is missing');
+      return;
+    }
+    // TODO: Implement document viewing functionality
+    console.log('Viewing document:', documentId);
+    toast.info('Document Viewer', 'Document viewer will be implemented soon');
+  };
+
+  const refreshDocumentRequests = async () => {
+    try {
+      setIsLoading(true);
+      console.log('Refreshing document requests...');
+      
+      // First, mark any overdue requests
+      try {
+        await supabase.rpc('mark_overdue_requests');
+        console.log('Marked overdue requests');
+      } catch (overdueError) {
+        console.warn('Could not mark overdue requests:', overdueError);
+      }
+      
+      const requests = await documentRequestsApi.getAll();
+      console.log('Refreshed document requests:', requests);
+      setDocumentRequests(requests);
+    } catch (error) {
+      console.error('Failed to refresh document requests:', error);
+      toast.error('Error', 'Failed to refresh document requests');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Handle deleting a request
   
 
@@ -257,8 +300,8 @@ export function ClientCommunications() {
         }}
       />
       
-      {/* Test button for debugging */}
-      <div className="max-w-content mx-auto px-4 sm:px-6 md:px-8 py-2">
+      {/* Debug and refresh buttons */}
+      <div className="max-w-content mx-auto px-4 sm:px-6 md:px-8 py-2 flex gap-2">
         <Button
           onClick={async () => {
             console.log('Testing database connection...');
@@ -275,6 +318,22 @@ export function ClientCommunications() {
           size="sm"
         >
           Test Database
+        </Button>
+        <Button
+          onClick={async () => {
+            try {
+              await refreshDocumentRequests();
+              toast.success('Refreshed', 'Document requests updated successfully');
+            } catch (error) {
+              console.error('Refresh error:', error);
+              toast.error('Refresh Error', 'Failed to refresh document requests');
+            }
+          }}
+          variant="secondary"
+          size="sm"
+          icon={RefreshCw}
+        >
+          Refresh Status
         </Button>
       </div>
       
@@ -495,29 +554,68 @@ export function ClientCommunications() {
                     </div>
                   </div>
                   
-                  {/* Document List - Collapsed View */}
-                  <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-                    {request.document_request_items && request.document_request_items.length > 0 ? (
-                      request.document_request_items.map((doc) => (
-                        <div 
-                          key={doc.id} 
-                          className={`px-3 py-2 rounded-lg text-sm flex items-center justify-between ${
-                            doc.status === 'uploaded' 
-                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
-                              : 'bg-surface border border-border-subtle text-text-secondary'
-                          }`}
-                        >
-                          <span className="truncate">{doc.document_name}</span>
-                          {doc.status === 'uploaded' ? (
-                            <CheckCircle className="w-4 h-4 flex-shrink-0 ml-2" />
-                          ) : (
-                            <Clock className="w-4 h-4 flex-shrink-0 ml-2" />
-                          )}
+                  {/* Document List - Enhanced View */}
+                  <div className="mt-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                      {request.document_request_items && request.document_request_items.length > 0 ? (
+                        request.document_request_items.map((doc) => (
+                          <div 
+                            key={doc.id} 
+                            className={`px-3 py-2 rounded-lg text-sm flex items-center justify-between ${
+                              doc.status === 'uploaded' 
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+                                : 'bg-surface border border-border-subtle text-text-secondary'
+                            }`}
+                          >
+                            <span className="truncate">{doc.document_name}</span>
+                            {doc.status === 'uploaded' ? (
+                              <CheckCircle className="w-4 h-4 flex-shrink-0 ml-2" />
+                            ) : (
+                              <Clock className="w-4 h-4 flex-shrink-0 ml-2" />
+                            )}
+                          </div>
+                        ))
+                      ) : (
+                        <div className="col-span-full text-center text-text-tertiary text-sm py-4">
+                          No document items found
                         </div>
-                      ))
-                    ) : (
-                      <div className="col-span-full text-center text-text-tertiary text-sm py-4">
-                        No document items found
+                      )}
+                    </div>
+                    
+                    {/* Uploaded Documents Details */}
+                    {request.document_request_items && request.document_request_items.filter(doc => doc.status === 'uploaded').length > 0 && (
+                      <div className="mt-4 p-4 bg-emerald-50 rounded-lg border border-emerald-200">
+                        <div className="flex items-center mb-3">
+                          <CheckCircle className="w-5 h-5 text-emerald-600 mr-2" />
+                          <h4 className="font-medium text-emerald-800">
+                            Recently Uploaded Documents
+                          </h4>
+                        </div>
+                        <div className="space-y-2">
+                          {request.document_request_items
+                            .filter(doc => doc.status === 'uploaded')
+                            .map((doc) => (
+                              <div key={doc.id} className="flex items-center justify-between text-sm">
+                                <div className="flex items-center">
+                                  <FileText className="w-4 h-4 text-emerald-600 mr-2" />
+                                  <span className="text-emerald-700">{doc.document_name}</span>
+                                </div>
+                                <div className="flex items-center text-emerald-600">
+                                  <span className="text-xs">
+                                    {doc.uploaded_at ? formatDate(doc.uploaded_at) : 'Recently uploaded'}
+                                  </span>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="ml-2 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-100"
+                                    onClick={() => handleViewDocument(doc.uploaded_document_id)}
+                                  >
+                                    View
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -706,12 +804,12 @@ export function ClientCommunications() {
               <tbody className="divide-y divide-border-subtle">
                 {documentRequests
                   .filter(req => req.status !== 'complete')
-                  .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
+                  .sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime())
                   .slice(0, 5)
                   .map((request) => (
                     <tr key={request.id} className="hover:bg-surface-hover transition-all duration-200">
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="font-medium text-text-primary">{getClientName(request.clientId)}</div>
+                        <div className="font-medium text-text-primary">{getClientName(request.client_id)}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-text-primary">{request.title}</div>
@@ -878,48 +976,55 @@ export function ClientCommunications() {
               <div>
                 <h3 className="font-semibold text-text-primary mb-4">Requested Documents</h3>
                 <div className="space-y-3">
-                  {selectedRequest.documents.map((doc) => (
-                    <div 
-                      key={doc.id} 
-                      className={`flex items-center justify-between p-4 rounded-xl border ${
-                        doc.status === 'uploaded' 
-                          ? 'bg-emerald-50 border-emerald-200' 
-                          : 'bg-surface border-border-subtle'
-                      }`}
-                    >
-                      <div className="flex items-center space-x-3">
-                        <div className={`p-2 rounded-lg ${
-                          doc.status === 'uploaded' ? 'bg-emerald-100' : 'bg-surface-elevated'
-                        }`}>
-                          <FileText className={`w-4 h-4 ${
-                            doc.status === 'uploaded' ? 'text-emerald-600' : 'text-text-tertiary'
-                          }`} />
+                  {selectedRequest.document_request_items && selectedRequest.document_request_items.length > 0 ? (
+                    selectedRequest.document_request_items.map((doc) => (
+                      <div 
+                        key={doc.id} 
+                        className={`flex items-center justify-between p-4 rounded-xl border ${
+                          doc.status === 'uploaded' 
+                            ? 'bg-emerald-50 border-emerald-200' 
+                            : 'bg-surface border-border-subtle'
+                        }`}
+                      >
+                        <div className="flex items-center space-x-3">
+                          <div className={`p-2 rounded-lg ${
+                            doc.status === 'uploaded' ? 'bg-emerald-100' : 'bg-surface-elevated'
+                          }`}>
+                            <FileText className={`w-4 h-4 ${
+                              doc.status === 'uploaded' ? 'text-emerald-600' : 'text-text-tertiary'
+                            }`} />
+                          </div>
+                          <div>
+                            <p className="font-medium text-text-primary">{doc.document_name}</p>
+                            {doc.status === 'uploaded' && doc.uploaded_at && (
+                              <p className="text-xs text-text-tertiary">
+                                Uploaded on {formatDate(doc.uploaded_at)}
+                              </p>
+                            )}
+                          </div>
                         </div>
                         <div>
-                          <p className="font-medium text-text-primary">{doc.name}</p>
-                          {doc.status === 'uploaded' && doc.uploadedAt && (
-                            <p className="text-xs text-text-tertiary">
-                              Uploaded on {formatDate(doc.uploadedAt)}
-                            </p>
+                          {doc.status === 'uploaded' ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              icon={Eye}
+                              className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                              onClick={() => handleViewDocument(doc.uploaded_document_id)}
+                            >
+                              View
+                            </Button>
+                          ) : (
+                            <Badge variant="neutral" size="sm">Pending</Badge>
                           )}
                         </div>
                       </div>
-                      <div>
-                        {doc.status === 'uploaded' ? (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            icon={Eye}
-                            className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
-                          >
-                            View
-                          </Button>
-                        ) : (
-                          <Badge variant="neutral" size="sm">Pending</Badge>
-                        )}
-                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center text-text-tertiary py-8">
+                      No document items found
                     </div>
-                  ))}
+                  )}
                 </div>
               </div>
 
@@ -935,15 +1040,15 @@ export function ClientCommunications() {
                       <div>
                         <div className="flex items-center justify-between">
                           <p className="font-medium text-text-primary">Initial Request Sent</p>
-                          <span className="text-xs text-text-tertiary">{formatDate(selectedRequest.createdAt)}</span>
+                          <span className="text-xs text-text-tertiary">{formatDate(selectedRequest.created_at)}</span>
                         </div>
                         <p className="text-sm text-text-secondary mt-1">
-                          Document request email sent to {getClientName(selectedRequest.clientId)}
+                          Document request email sent to {getClientName(selectedRequest.client_id)}
                         </p>
                       </div>
                     </div>
                     
-                    {selectedRequest.lastReminder && (
+                    {selectedRequest.last_reminder_sent && (
                       <div className="flex items-start space-x-3">
                         <div className="p-2 bg-amber-100 rounded-lg">
                           <Mail className="w-4 h-4 text-amber-600" />
@@ -951,16 +1056,16 @@ export function ClientCommunications() {
                         <div>
                           <div className="flex items-center justify-between">
                             <p className="font-medium text-text-primary">Reminder Sent</p>
-                            <span className="text-xs text-text-tertiary">{formatDate(selectedRequest.lastReminder)}</span>
+                            <span className="text-xs text-text-tertiary">{formatDate(selectedRequest.last_reminder_sent)}</span>
                           </div>
                           <p className="text-sm text-text-secondary mt-1">
-                            Reminder email sent to {getClientName(selectedRequest.clientId)}
+                            Reminder email sent to {getClientName(selectedRequest.client_id)}
                           </p>
                         </div>
                       </div>
                     )}
                     
-                    {selectedRequest.documents.some(doc => doc.status === 'uploaded') && (
+                    {selectedRequest.document_request_items && selectedRequest.document_request_items.some(doc => doc.status === 'uploaded') && (
                       <div className="flex items-start space-x-3">
                         <div className="p-2 bg-emerald-100 rounded-lg">
                           <FileText className="w-4 h-4 text-emerald-600" />
@@ -969,11 +1074,11 @@ export function ClientCommunications() {
                           <div className="flex items-center justify-between">
                             <p className="font-medium text-text-primary">Documents Uploaded</p>
                             <span className="text-xs text-text-tertiary">
-                              {formatDate(selectedRequest.documents.find(doc => doc.status === 'uploaded')?.uploadedAt || '')}
+                              {formatDate(selectedRequest.document_request_items.find(doc => doc.status === 'uploaded')?.uploaded_at || '')}
                             </span>
                           </div>
                           <p className="text-sm text-text-secondary mt-1">
-                            Client uploaded {selectedRequest.documents.filter(doc => doc.status === 'uploaded').length} document(s)
+                            Client uploaded {selectedRequest.document_request_items.filter(doc => doc.status === 'uploaded').length} document(s)
                           </p>
                         </div>
                       </div>
