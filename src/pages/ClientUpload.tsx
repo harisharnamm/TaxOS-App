@@ -115,7 +115,7 @@ const ClientUpload: React.FC = () => {
         storage_path: filePath,
         file_size: file.size,
         mime_type: file.type || 'application/octet-stream',
-        document_type: 'client_upload',
+        document_type: 'other',
         processing_status: 'pending',
         uploaded_via_token: true,
         upload_token: decodedToken
