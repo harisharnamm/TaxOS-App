@@ -91,6 +91,9 @@ const ClientUpload: React.FC = () => {
       const fileExt = file.name.split('.').pop();
       const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
       const filePath = `client-uploads/${request.id}/${fileName}`;
+      
+      console.log('Generated filename:', fileName);
+      console.log('File path:', filePath);
 
       // Upload file to Supabase Storage
       const { data: uploadData, error: uploadError } = await supabase.storage
@@ -104,19 +107,25 @@ const ClientUpload: React.FC = () => {
       console.log('File uploaded to storage:', uploadData);
 
       // Create document record
+      const documentDataToInsert = {
+        user_id: request.user_id,
+        client_id: request.client_id,
+        filename: fileName, // Use the generated filename
+        original_filename: file.name,
+        storage_path: filePath,
+        file_size: file.size,
+        mime_type: file.type || 'application/octet-stream',
+        document_type: 'client_upload',
+        processing_status: 'pending',
+        uploaded_via_token: true,
+        upload_token: decodedToken
+      };
+      
+      console.log('Document data to insert:', documentDataToInsert);
+      
       const { data: documentData, error: documentError } = await supabase
         .from('documents')
-        .insert({
-          user_id: request.user_id,
-          client_id: request.client_id,
-          original_filename: file.name,
-          storage_path: filePath,
-          file_size: file.size,
-          document_type: 'client_upload',
-          processing_status: 'pending',
-          uploaded_via_token: true,
-          upload_token: decodedToken
-        })
+        .insert(documentDataToInsert)
         .select()
         .single();
 
