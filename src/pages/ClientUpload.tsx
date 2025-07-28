@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { useToast } from '../contexts/ToastContext';
 
 interface DocumentRequest {
   id: string;
@@ -27,16 +26,18 @@ interface DocumentRequest {
 
 const ClientUpload: React.FC = () => {
   const { token } = useParams<{ token: string }>();
-  const navigate = useNavigate();
-  const toast = useToast();
   const [request, setRequest] = useState<DocumentRequest | null>(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState<{ [key: string]: number }>({});
+  const [message, setMessage] = useState<string>('');
+
+  console.log('ClientUpload component rendered');
+  console.log('Token:', token);
 
   useEffect(() => {
     if (!token) {
-      toast.error('Invalid Link', 'Upload token is missing');
+      setMessage('Invalid Link: Upload token is missing');
+      setLoading(false);
       return;
     }
 
@@ -45,6 +46,7 @@ const ClientUpload: React.FC = () => {
 
   const loadDocumentRequest = async () => {
     try {
+      console.log('Loading document request for token:', token);
       const { data, error } = await supabase
         .from('document_requests')
         .select(`
@@ -55,15 +57,18 @@ const ClientUpload: React.FC = () => {
         .eq('upload_token', token)
         .single();
 
+      console.log('Database response:', { data, error });
+
       if (error || !data) {
-        toast.error('Not Found', 'Document request not found or link has expired');
+        setMessage('Document request not found or link has expired');
         return;
       }
 
       setRequest(data);
+      console.log('Request loaded:', data);
     } catch (error) {
       console.error('Error loading document request:', error);
-      toast.error('Error', 'Failed to load document request');
+      setMessage('Failed to load document request');
     } finally {
       setLoading(false);
     }
@@ -73,9 +78,11 @@ const ClientUpload: React.FC = () => {
     if (!request) return;
 
     setUploading(true);
-    setUploadProgress(prev => ({ ...prev, [itemId]: 0 }));
+    setMessage('');
 
     try {
+      console.log('Uploading file:', file.name);
+      
       // Generate unique filename
       const fileExt = file.name.split('.').pop();
       const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
@@ -89,6 +96,8 @@ const ClientUpload: React.FC = () => {
       if (uploadError) {
         throw uploadError;
       }
+
+      console.log('File uploaded to storage:', uploadData);
 
       // Create document record
       const { data: documentData, error: documentError } = await supabase
@@ -111,6 +120,8 @@ const ClientUpload: React.FC = () => {
         throw documentError;
       }
 
+      console.log('Document record created:', documentData);
+
       // Update document request item
       const { error: updateError } = await supabase
         .from('document_request_items')
@@ -125,17 +136,16 @@ const ClientUpload: React.FC = () => {
         throw updateError;
       }
 
-      toast.success('Upload Successful', `${file.name} uploaded successfully`);
+      setMessage(`${file.name} uploaded successfully!`);
       
       // Reload request data to show updated status
       await loadDocumentRequest();
 
     } catch (error) {
       console.error('Upload error:', error);
-      toast.error('Upload Failed', `Failed to upload ${file.name}`);
+      setMessage(`Failed to upload ${file.name}: ${error.message}`);
     } finally {
       setUploading(false);
-      setUploadProgress(prev => ({ ...prev, [itemId]: 0 }));
     }
   };
 
@@ -162,7 +172,7 @@ const ClientUpload: React.FC = () => {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-gray-900 mb-4">Document Request Not Found</h1>
-          <p className="text-gray-600">The link may have expired or the request may have been removed.</p>
+          <p className="text-gray-600">{message || 'The link may have expired or the request may have been removed.'}</p>
         </div>
       </div>
     );
@@ -175,6 +185,17 @@ const ClientUpload: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+        {/* Message */}
+        {message && (
+          <div className={`mb-4 p-4 rounded-lg ${
+            message.includes('successfully') 
+              ? 'bg-green-50 text-green-800 border border-green-200' 
+              : 'bg-red-50 text-red-800 border border-red-200'
+          }`}>
+            {message}
+          </div>
+        )}
+
         {/* Header */}
         <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
           <div className="flex items-center justify-between">
@@ -252,13 +273,8 @@ const ClientUpload: React.FC = () => {
                       </div>
                     ) : (
                       <div className="flex items-center space-x-2">
-                        {uploadProgress[item.id] > 0 && uploadProgress[item.id] < 100 && (
-                          <div className="text-sm text-blue-600">
-                            {uploadProgress[item.id]}%
-                          </div>
-                        )}
                         <label className="cursor-pointer bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors">
-                          {uploading && uploadProgress[item.id] > 0 ? 'Uploading...' : 'Choose File'}
+                          {uploading ? 'Uploading...' : 'Choose File'}
                           <input
                             type="file"
                             className="hidden"
@@ -303,4 +319,4 @@ const ClientUpload: React.FC = () => {
   );
 };
 
-export default ClientUpload; 
+export default ClientUpload;
