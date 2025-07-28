@@ -18,6 +18,7 @@ import { DocumentManagement } from './pages/DocumentManagement';
 import { AITaxAssistant } from './pages/AITaxAssistant';
 import { Settings } from './pages/SettingsPage';
 import { ClientCommunications } from './pages/ClientCommunications';
+import ClientUpload from './pages/ClientUpload';
 import { SignIn } from './pages/SignIn';
 import { SignUp } from './pages/SignUp';
 
@@ -40,6 +41,9 @@ function AppContent() {
       {/* Authentication routes - full width without sidebar */}
       <Route path="/signin" element={<SignIn />} />
       <Route path="/signup" element={<SignUp />} />
+      
+      {/* Client upload route - public access */}
+      <Route path="/upload/:token" element={<ClientUpload />} />
       
       {/* Main app routes - with sidebar */}
       <Route path="/" element={
