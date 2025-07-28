@@ -11,6 +11,8 @@ import { Tooltip } from '../components/ui/tooltip';
 import { useToast } from '../contexts/ToastContext';
 import { Skeleton, SkeletonText } from '../components/ui/skeleton';
 import { useClients } from '../hooks/useClients';
+import { documentRequests as documentRequestsApi, emailCommunications } from '../lib/database';
+import { supabase } from '../lib/supabase';
 import { 
   Search, 
   Filter, 
@@ -30,22 +32,31 @@ import {
   User
 } from 'lucide-react';
 
-// Mock data for document requests
+// Document request interface matching our database schema
 interface DocumentRequest {
   id: string;
-  clientId: string;
+  user_id: string;
+  client_id: string;
   title: string;
   description?: string;
-  documentTypes: string[];
+  document_types: string[];
   status: 'pending' | 'partial' | 'complete' | 'overdue';
-  dueDate: string;
-  createdAt: string;
-  lastReminder?: string;
-  documents: {
-    id: string;
+  due_date: string;
+  upload_token: string;
+  email_sent: boolean;
+  last_reminder_sent?: string;
+  created_at: string;
+  updated_at: string;
+  clients?: {
     name: string;
+    email: string;
+  };
+  document_request_items?: {
+    id: string;
+    document_name: string;
     status: 'pending' | 'uploaded';
-    uploadedAt?: string;
+    uploaded_document_id?: string;
+    uploaded_at?: string;
   }[];
 }
 
@@ -59,82 +70,26 @@ export function ClientCommunications() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [isLoading, setIsLoading] = useState(true);
 
-  // Mock document requests data
-  const [documentRequests, setDocumentRequests] = useState<DocumentRequest[]>([
-    {
-      id: '1',
-      clientId: clients[0]?.id || 'client-1',
-      title: 'Annual Tax Return Documents',
-      description: 'Please provide all necessary documents for your 2024 tax return preparation.',
-      documentTypes: ['W-2', '1099-MISC', 'Bank Statements', 'Charitable Donations'],
-      status: 'partial',
-      dueDate: '2025-03-15',
-      createdAt: '2025-01-10',
-      lastReminder: '2025-02-01',
-      documents: [
-        { id: 'd1', name: 'W-2 Form', status: 'uploaded', uploadedAt: '2025-01-15' },
-        { id: 'd2', name: '1099-MISC', status: 'pending' },
-        { id: 'd3', name: 'Bank Statements', status: 'uploaded', uploadedAt: '2025-01-20' },
-        { id: 'd4', name: 'Charitable Donations', status: 'pending' }
-      ]
-    },
-    {
-      id: '2',
-      clientId: clients[1]?.id || 'client-2',
-      title: 'Quarterly Business Expense Documentation',
-      description: 'Please upload your Q1 2025 business expense receipts and statements.',
-      documentTypes: ['Receipts', 'Bank Statements', 'Credit Card Statements'],
-      status: 'pending',
-      dueDate: '2025-04-15',
-      createdAt: '2025-03-01',
-      documents: [
-        { id: 'd5', name: 'Receipts', status: 'pending' },
-        { id: 'd6', name: 'Bank Statements', status: 'pending' },
-        { id: 'd7', name: 'Credit Card Statements', status: 'pending' }
-      ]
-    },
-    {
-      id: '3',
-      clientId: clients[2]?.id || 'client-3',
-      title: 'IRS Audit Documentation',
-      description: 'Please provide the requested documents for your IRS audit response.',
-      documentTypes: ['Previous Tax Returns', 'Income Verification', 'Expense Documentation'],
-      status: 'complete',
-      dueDate: '2025-02-28',
-      createdAt: '2025-02-01',
-      lastReminder: '2025-02-15',
-      documents: [
-        { id: 'd8', name: 'Previous Tax Returns', status: 'uploaded', uploadedAt: '2025-02-10' },
-        { id: 'd9', name: 'Income Verification', status: 'uploaded', uploadedAt: '2025-02-12' },
-        { id: 'd10', name: 'Expense Documentation', status: 'uploaded', uploadedAt: '2025-02-20' }
-      ]
-    },
-    {
-      id: '4',
-      clientId: clients[0]?.id || 'client-1',
-      title: 'Year-End Planning Documents',
-      description: 'Please provide documentation for year-end tax planning.',
-      documentTypes: ['Asset Purchases', 'Retirement Contributions', 'Estimated Expenses'],
-      status: 'overdue',
-      dueDate: '2025-01-15',
-      createdAt: '2024-12-15',
-      lastReminder: '2025-01-10',
-      documents: [
-        { id: 'd11', name: 'Asset Purchases', status: 'pending' },
-        { id: 'd12', name: 'Retirement Contributions', status: 'uploaded', uploadedAt: '2025-01-05' },
-        { id: 'd13', name: 'Estimated Expenses', status: 'pending' }
-      ]
-    }
-  ]);
+  // Real document requests data from database
+  const [documentRequests, setDocumentRequests] = useState<DocumentRequest[]>([]);
 
-  // Simulate loading state
+  // Load document requests from database
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 1000);
-    
-    return () => clearTimeout(timer);
-  }, []);
+    const loadDocumentRequests = async () => {
+      try {
+        setIsLoading(true);
+        const requests = await documentRequestsApi.getAll();
+        setDocumentRequests(requests);
+      } catch (error) {
+        console.error('Failed to load document requests:', error);
+        toast.error('Error', 'Failed to load document requests');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadDocumentRequests();
+  }, [toast]);
 
   // Get client name from client ID
   const getClientName = (clientId: string) => {
@@ -192,9 +147,9 @@ export function ClientCommunications() {
 
   // Calculate completion percentage
   const getCompletionPercentage = (request: DocumentRequest) => {
-    const totalDocuments = request.documents.length;
-    const uploadedDocuments = request.documents.filter(doc => doc.status === 'uploaded').length;
-    return Math.round((uploadedDocuments / totalDocuments) * 100);
+    const totalDocuments = request.document_request_items?.length || 0;
+    const uploadedDocuments = request.document_request_items?.filter(doc => doc.status === 'uploaded').length || 0;
+    return totalDocuments > 0 ? Math.round((uploadedDocuments / totalDocuments) * 100) : 0;
   };
 
   // Handle creating a new document request
@@ -206,34 +161,48 @@ export function ClientCommunications() {
     dueDate: string;
     sendEmail: boolean;
   }) => {
-    // In a real implementation, this would call an API to create the request
-    // For now, we'll just add it to our mock data
-    const newRequest: DocumentRequest = {
-      id: `${documentRequests.length + 1}`,
-      clientId: requestData.clientId,
-      title: requestData.title,
-      description: requestData.description,
-      documentTypes: requestData.documentTypes,
-      status: 'pending',
-      dueDate: requestData.dueDate,
-      createdAt: new Date().toISOString(),
-      documents: requestData.documentTypes.map((type, index) => ({
-        id: `new-${index}`,
-        name: type,
-        status: 'pending'
-      }))
-    };
-    
-    setDocumentRequests([newRequest, ...documentRequests]);
-    
-    // If sendEmail is true, we would send an email to the client
-    if (requestData.sendEmail) {
-      // Show toast notification instead of alert
-      console.log('Sending email to client:', getClientName(requestData.clientId));
-      toast.success('Email Sent', `Document request email sent to ${getClientName(requestData.clientId)}`);
+    try {
+      // Create document request in database
+      const newRequest = await documentRequestsApi.create({
+        client_id: requestData.clientId,
+        title: requestData.title,
+        description: requestData.description,
+        document_types: requestData.documentTypes,
+        due_date: requestData.dueDate,
+        status: 'pending',
+      });
+
+      // Add to local state
+      setDocumentRequests([newRequest, ...documentRequests]);
+      
+      // If sendEmail is true, call the Supabase Edge Function
+      if (requestData.sendEmail) {
+        try {
+          const { data, error } = await supabase.functions.invoke('send-document-request', {
+            body: { requestId: newRequest.id }
+          });
+
+          if (error) {
+            console.error('Failed to send email:', error);
+            toast.error('Email Error', 'Failed to send document request email');
+          } else {
+            console.log('Email sent successfully:', data);
+            toast.success('Email Sent', `Document request email sent to ${getClientName(requestData.clientId)}`);
+          }
+        } catch (emailError) {
+          console.error('Email function error:', emailError);
+          toast.error('Email Error', 'Failed to send document request email');
+        }
+      } else {
+        toast.success('Request Created', 'Document request created successfully');
+      }
+      
+      return Promise.resolve();
+    } catch (error) {
+      console.error('Failed to create document request:', error);
+      toast.error('Error', 'Failed to create document request');
+      throw error;
     }
-    
-    return Promise.resolve();
   };
 
   // Handle sending a reminder
@@ -243,14 +212,14 @@ export function ClientCommunications() {
     setDocumentRequests(prev => 
       prev.map(req => 
         req.id === requestId 
-          ? { ...req, lastReminder: new Date().toISOString() } 
+          ? { ...req, last_reminder_sent: new Date().toISOString() } 
           : req
       )
     );
     
     const request = documentRequests.find(req => req.id === requestId);
     if (request) {
-      toast.info('Reminder Sent', `Reminder email sent to ${getClientName(request.clientId)} for "${request.title}"`);
+      toast.info('Reminder Sent', `Reminder email sent to ${getClientName(request.client_id)} for "${request.title}"`);
     }
   };
 
