@@ -460,7 +460,7 @@ export function ClientCommunications() {
                   <div className="mt-4">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-sm font-medium text-text-secondary">
-                        {request.document_request_items?.filter(doc => doc.status === 'uploaded').length || 0} of {request.document_request_items?.length || 0} documents received
+                        {request.document_request_items ? request.document_request_items.filter(doc => doc.status === 'uploaded').length : 0} of {request.document_request_items ? request.document_request_items.length : 0} documents received
                       </span>
                       <span className="text-sm font-medium text-text-secondary">
                         {getCompletionPercentage(request)}%
@@ -482,23 +482,29 @@ export function ClientCommunications() {
                   
                   {/* Document List - Collapsed View */}
                   <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-                    {request.document_request_items?.map((doc) => (
-                      <div 
-                        key={doc.id} 
-                        className={`px-3 py-2 rounded-lg text-sm flex items-center justify-between ${
-                          doc.status === 'uploaded' 
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
-                            : 'bg-surface border border-border-subtle text-text-secondary'
-                        }`}
-                      >
-                        <span className="truncate">{doc.document_name}</span>
-                        {doc.status === 'uploaded' ? (
-                          <CheckCircle className="w-4 h-4 flex-shrink-0 ml-2" />
-                        ) : (
-                          <Clock className="w-4 h-4 flex-shrink-0 ml-2" />
-                        )}
+                    {request.document_request_items && request.document_request_items.length > 0 ? (
+                      request.document_request_items.map((doc) => (
+                        <div 
+                          key={doc.id} 
+                          className={`px-3 py-2 rounded-lg text-sm flex items-center justify-between ${
+                            doc.status === 'uploaded' 
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+                              : 'bg-surface border border-border-subtle text-text-secondary'
+                          }`}
+                        >
+                          <span className="truncate">{doc.document_name}</span>
+                          {doc.status === 'uploaded' ? (
+                            <CheckCircle className="w-4 h-4 flex-shrink-0 ml-2" />
+                          ) : (
+                            <Clock className="w-4 h-4 flex-shrink-0 ml-2" />
+                          )}
+                        </div>
+                      ))
+                    ) : (
+                      <div className="col-span-full text-center text-text-tertiary text-sm py-4">
+                        No document items found
                       </div>
-                    ))}
+                    )}
                   </div>
                 </div>
               ))}
