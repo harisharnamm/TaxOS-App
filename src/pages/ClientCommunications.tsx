@@ -79,11 +79,13 @@ export function ClientCommunications() {
       try {
         setIsLoading(true);
         console.log('Loading document requests...');
+        console.log('documentRequestsApi:', documentRequestsApi);
         const requests = await documentRequestsApi.getAll();
         console.log('Loaded document requests:', requests);
         setDocumentRequests(requests);
       } catch (error) {
         console.error('Failed to load document requests:', error);
+        console.error('Error details:', error);
         toast.error('Error', 'Failed to load document requests');
       } finally {
         setIsLoading(false);
@@ -163,6 +165,8 @@ export function ClientCommunications() {
     dueDate: string;
     sendEmail: boolean;
   }) => {
+    console.log('=== handleCreateRequest called ===');
+    console.log('Request data:', requestData);
     try {
       console.log('Creating document request with data:', requestData);
       
