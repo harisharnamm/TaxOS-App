@@ -15,7 +15,29 @@ import { StatCard } from '../components/atoms/StatCard';
 import { Input } from '../components/atoms/Input';
 import { Button } from '../components/atoms/Button';
 import { Badge } from '../components/atoms/Badge';
-import { Users, FileText, AlertTriangle, Calendar, Search, Plus, Clock, TrendingUp, CheckCircle, RotateCcw } from 'lucide-react';
+import { 
+  Users, 
+  FileText, 
+  AlertTriangle, 
+  Calendar, 
+  Search, 
+  Plus, 
+  Clock, 
+  TrendingUp, 
+  CheckCircle, 
+  RotateCcw,
+  MessageSquare,
+  Upload,
+  Brain,
+  Zap,
+  Target,
+  Activity,
+  BarChart3,
+  PieChart,
+  ArrowUpRight,
+  ArrowDownRight,
+  Sparkles
+} from 'lucide-react';
 
 export function Dashboard() {
   const navigate = useNavigate();
@@ -57,7 +79,7 @@ export function Dashboard() {
 
   // Simulate real-time updates - must be called before any conditional returns
   useEffect(() => {
-    const cardIds = ['clients', 'w9s', 'notices', 'deadlines'];
+    const cardIds = ['clients', 'documents', 'tasks', 'insights'];
     const interval = setInterval(() => {
       const randomCard = cardIds[Math.floor(Math.random() * cardIds.length)];
       setAnimatingCards([randomCard]);
@@ -77,11 +99,7 @@ export function Dashboard() {
     }, 100);
   };
 
-  const handleSendW9Request = () => {
-    navigate('/1099-hub');
-  };
-
-  const handleUploadIRSNotice = () => {
+  const handleUploadDocuments = () => {
     navigate('/irs-notices?action=upload');
   };
 
@@ -143,69 +161,77 @@ export function Dashboard() {
       change: '+2 this month',
       icon: Users,
       trend: 'up' as const,
-      tooltip: 'Engagements this fiscal year',
+      tooltip: 'Clients with active engagements',
     },
     {
-      id: 'w9s',
-      title: 'Pending W-9s',
-      value: stats.pendingW9s,
-      change: '-3 from last week',
+      id: 'documents',
+      title: 'Documents Processed',
+      value: stats.totalNotices || 0,
+      change: '+15 this week',
       icon: FileText,
-      trend: 'down' as const,
-      tooltip: 'Vendors still missing forms',
+      trend: 'up' as const,
+      tooltip: 'Total documents uploaded and processed',
     },
     {
-      id: 'notices',
-      title: 'Unresolved IRS Notices',
-      value: stats.unresolvedNotices,
-      change: 'Needs attention',
-      icon: AlertTriangle,
-      trend: 'warning' as const,
-      tooltip: 'Letters awaiting action',
+      id: 'tasks',
+      title: 'Active Tasks',
+      value: stats.totalTasks - (stats.upcomingDeadlines || 0),
+      change: `${stats.upcomingDeadlines || 0} due soon`,
+      icon: CheckCircle,
+      trend: stats.upcomingDeadlines > 5 ? 'warning' as const : 'up' as const,
+      tooltip: 'Tasks in progress and pending',
     },
     {
-      id: 'deadlines',
-      title: 'Deadlines < 30 days',
-      value: stats.upcomingDeadlines,
-      change: '2 critical',
-      icon: Calendar,
-      trend: 'warning' as const,
-      tooltip: 'Key filing / payment dates',
+      id: 'insights',
+      title: 'AI Insights',
+      value: recentInsights.length,
+      change: 'New opportunities',
+      icon: Brain,
+      trend: 'up' as const,
+      tooltip: 'AI-generated insights and recommendations',
     },
   ];
 
-
-
-  const timelineEvents = [
+  const recentActivity = [
     {
       id: '1',
-      event: 'AI detected potential deduction for Tech Solutions Inc',
+      event: 'AI detected potential deduction in uploaded receipt',
       time: '2 hours ago',
       type: 'ai',
+      icon: Brain,
+      color: 'text-purple-600 bg-purple-50'
     },
     {
       id: '2',
-      event: 'W-9 request sent to 3 vendors for Acme LLC',
+      event: 'Document request sent to 3 clients',
       time: '4 hours ago',
       type: 'action',
+      icon: FileText,
+      color: 'text-blue-600 bg-blue-50'
     },
     {
       id: '3',
       event: 'Q4 tax documents uploaded for Manufacturing Co',
       time: '6 hours ago',
       type: 'document',
+      icon: Upload,
+      color: 'text-emerald-600 bg-emerald-50'
     },
     {
       id: '4',
-      event: 'IRS Notice CP2000 resolved for Retail Partners',
+      event: 'Task completed: Review client tax strategy',
       time: '1 day ago',
       type: 'update',
+      icon: CheckCircle,
+      color: 'text-green-600 bg-green-50'
     },
     {
       id: '5',
       event: 'New client onboarding completed: StartupXYZ',
       time: '2 days ago',
       type: 'update',
+      icon: Users,
+      color: 'text-indigo-600 bg-indigo-50'
     },
   ];
 
@@ -268,21 +294,6 @@ export function Dashboard() {
     );
   }
 
-  const getEventIcon = (type: string) => {
-    switch (type) {
-      case 'ai':
-        return '🤖';
-      case 'action':
-        return '📧';
-      case 'update':
-        return '✅';
-      case 'document':
-        return '📄';
-      default:
-        return '•';
-    }
-  };
-
   const getPriorityBadge = (priority: string) => {
     switch (priority) {
       case 'high':
@@ -328,6 +339,37 @@ export function Dashboard() {
       <GlobalSearch isOpen={isSearchOpen} onClose={closeSearch} />
       
       <div className="max-w-content mx-auto px-4 sm:px-6 md:px-8 py-6 sm:py-8">
+        {/* Welcome Section */}
+        <div className="bg-gradient-to-r from-primary/10 to-primary/5 rounded-2xl border border-primary/20 p-6 sm:p-8 mb-8 shadow-soft">
+          <div className="flex items-start justify-between">
+            <div className="flex items-center space-x-4">
+              <div className="p-3 bg-primary rounded-xl shadow-soft">
+                <Sparkles className="w-8 h-8 text-gray-900" />
+              </div>
+              <div>
+                <h1 className="text-2xl sm:text-3xl font-bold text-text-primary mb-2">
+                  Welcome to TaxOS
+                </h1>
+                <p className="text-text-secondary text-base sm:text-lg">
+                  Your AI-powered tax management platform
+                </p>
+              </div>
+            </div>
+            <div className="hidden sm:flex items-center space-x-2">
+              <div className="text-right">
+                <p className="text-sm text-text-tertiary">Today</p>
+                <p className="font-semibold text-text-primary">
+                  {new Date().toLocaleDateString('en-US', { 
+                    weekday: 'long', 
+                    month: 'short', 
+                    day: 'numeric' 
+                  })}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           {kpiData.map((stat, index) => (
@@ -346,33 +388,35 @@ export function Dashboard() {
 
         <div className="grid grid-cols-12 gap-8">
           {/* Main Content */}
-          <div className="col-span-8 space-y-8">
-            {/* Upcoming Tasks */}
-            <div className="bg-surface-elevated rounded-2xl border border-border-subtle p-8 shadow-soft animate-fade-in">
+          <div className="col-span-12 lg:col-span-8 space-y-8">
+            {/* Recent Tasks */}
+            <div className="bg-surface-elevated rounded-2xl border border-border-subtle p-6 sm:p-8 shadow-soft animate-fade-in">
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center space-x-3">
-                  <div className="p-2 bg-gradient-to-br from-primary/10 to-primary/5 rounded-xl">
-                    <Clock className="w-5 h-5 text-primary" />
+                  <div className="p-2 bg-gradient-to-br from-blue-100 to-blue-50 rounded-xl">
+                    <Clock className="w-5 h-5 text-blue-600" />
                   </div>
                   <h2 className="text-xl font-semibold text-text-primary">Recent Tasks</h2>
                 </div>
-                <Button 
-                  variant="ghost" 
-                  size="sm"
-                  onClick={() => {
-                    setShowCreateTaskDialog(true);
-                    toast.info('Create Task', 'Creating a new task');
-                  }}
-                >
-                  Create Task
-                </Button>
-                <Button 
-                  variant="ghost" 
-                  size="sm"
-                  onClick={() => navigate('/tasks')}
-                >
-                  View All
-                </Button>
+                <div className="flex items-center space-x-3">
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={() => {
+                      setShowCreateTaskDialog(true);
+                      toast.info('Create Task', 'Creating a new task');
+                    }}
+                  >
+                    Create Task
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={() => navigate('/tasks')}
+                  >
+                    View All
+                  </Button>
+                </div>
               </div>
               <div className="space-y-4">
                 {upcomingTasks.length > 0 ? upcomingTasks.map((task) => (
@@ -440,29 +484,31 @@ export function Dashboard() {
                   <div className="text-center py-8">
                     <Clock className="w-12 h-12 text-text-tertiary mx-auto mb-4" />
                     <h3 className="text-lg font-semibold text-text-primary mb-2">No upcoming tasks</h3>
-                    <p className="text-text-tertiary">Create tasks from IRS notices or add them manually</p>
+                    <p className="text-text-tertiary">Create tasks or upload documents to get started</p>
                   </div>
                 )}
               </div>
             </div>
 
             {/* Recent Activity Timeline */}
-            <div className="bg-surface-elevated rounded-2xl border border-border-subtle p-8 shadow-soft animate-fade-in">
+            <div className="bg-surface-elevated rounded-2xl border border-border-subtle p-6 sm:p-8 shadow-soft animate-fade-in">
               <div className="flex items-center space-x-3 mb-6">
                 <div className="p-2 bg-gradient-to-br from-emerald-100 to-emerald-50 rounded-xl">
-                  <TrendingUp className="w-5 h-5 text-emerald-600" />
+                  <Activity className="w-5 h-5 text-emerald-600" />
                 </div>
                 <h2 className="text-xl font-semibold text-text-primary">Recent Activity</h2>
               </div>
               <div className="space-y-4">
-                {timelineEvents.map((event) => (
-                  <div key={event.id} className="flex items-start space-x-4 p-3 rounded-xl hover:bg-surface transition-colors duration-200">
-                    <div className="text-lg">{getEventIcon(event.type)}</div>
+                {recentActivity.map((activity) => (
+                  <div key={activity.id} className="flex items-start space-x-4 p-3 rounded-xl hover:bg-surface transition-colors duration-200">
+                    <div className={`p-2 rounded-lg ${activity.color}`}>
+                      <activity.icon className="w-4 h-4" />
+                    </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-text-primary">
-                        <Tooltip content={`Event type: ${event.type}`}>{event.event}</Tooltip>
+                        <Tooltip content={`Activity type: ${activity.type}`}>{activity.event}</Tooltip>
                       </p>
-                      <p className="text-xs text-text-tertiary mt-1">{event.time}</p>
+                      <p className="text-xs text-text-tertiary mt-1">{activity.time}</p>
                     </div>
                   </div>
                 ))}
@@ -471,7 +517,7 @@ export function Dashboard() {
           </div>
           
           {/* Sidebar */}
-          <div className="col-span-4 space-y-6">
+          <div className="col-span-12 lg:col-span-4 space-y-6">
             {/* Quick Actions */}
             <div className="bg-surface-elevated rounded-2xl border border-border-subtle p-6 shadow-soft animate-fade-in">
               <h3 className="font-semibold text-text-primary mb-4">Quick Actions</h3>
@@ -489,24 +535,24 @@ export function Dashboard() {
                 <Button 
                   variant="secondary" 
                   className="w-full justify-start hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200" 
-                  icon={FileText}
+                  icon={Upload}
                   onClick={() => {
-                    handleSendW9Request();
-                    toast.info('Navigation', 'Redirecting to W-9 hub');
+                    handleUploadDocuments();
+                    toast.info('Navigation', 'Redirecting to document upload');
                   }}
                 >
-                  Send W-9 Request
+                  Upload Documents
                 </Button>
                 <Button 
                   variant="secondary" 
-                  className="w-full justify-start hover:bg-red-50 hover:text-red-600 hover:border-red-200" 
-                  icon={AlertTriangle}
+                  className="w-full justify-start hover:bg-purple-50 hover:text-purple-600 hover:border-purple-200" 
+                  icon={MessageSquare}
                   onClick={() => {
-                    handleUploadIRSNotice();
-                    toast.info('Navigation', 'Redirecting to IRS notices page');
+                    navigate('/deduction-chat');
+                    toast.info('Navigation', 'Opening AI Tax Assistant');
                   }}
                 >
-                  Upload IRS Notice
+                  Ask AI Assistant
                 </Button>
               </div>
             </div>
@@ -521,16 +567,68 @@ export function Dashboard() {
                 {recentInsights.length > 0 ? (
                   recentInsights.map((insight) => (
                     <div key={insight.id} className="p-3 bg-surface-elevated/80 rounded-xl border border-border-subtle">
-                      <p className="text-sm text-text-primary font-medium">{insight.title}</p>
-                      <p className="text-xs text-text-tertiary mt-1">{insight.description}</p>
+                      <div className="flex items-start space-x-2">
+                        <Zap className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-sm text-text-primary font-medium">{insight.title}</p>
+                          <p className="text-xs text-text-tertiary mt-1">{insight.description}</p>
+                        </div>
+                      </div>
                     </div>
                   ))
                 ) : (
                   <div className="p-3 bg-surface-elevated/80 rounded-xl border border-border-subtle">
-                    <p className="text-sm text-text-secondary">No recent AI insights</p>
-                    <p className="text-xs text-text-tertiary mt-1">Upload documents to generate insights</p>
+                    <div className="flex items-start space-x-2">
+                      <Brain className="w-4 h-4 text-text-tertiary flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-sm text-text-secondary">No recent AI insights</p>
+                        <p className="text-xs text-text-tertiary mt-1">Upload documents to generate insights</p>
+                      </div>
+                    </div>
                   </div>
                 )}
+              </div>
+            </div>
+
+            {/* Platform Stats */}
+            <div className="bg-surface-elevated rounded-2xl border border-border-subtle p-6 shadow-soft animate-fade-in">
+              <div className="flex items-center space-x-3 mb-4">
+                <div className="p-2 bg-gradient-to-br from-indigo-100 to-indigo-50 rounded-xl">
+                  <BarChart3 className="w-5 h-5 text-indigo-600" />
+                </div>
+                <h3 className="font-semibold text-text-primary">Platform Overview</h3>
+              </div>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <Users className="w-4 h-4 text-text-tertiary" />
+                    <span className="text-sm text-text-secondary">Total Clients</span>
+                  </div>
+                  <span className="font-semibold text-text-primary">{stats.totalClients}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <FileText className="w-4 h-4 text-text-tertiary" />
+                    <span className="text-sm text-text-secondary">Documents</span>
+                  </div>
+                  <span className="font-semibold text-text-primary">{stats.totalNotices || 0}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <CheckCircle className="w-4 h-4 text-text-tertiary" />
+                    <span className="text-sm text-text-secondary">Completed Tasks</span>
+                  </div>
+                  <span className="font-semibold text-text-primary">
+                    {tasks.filter(t => t.status === 'completed').length}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <Brain className="w-4 h-4 text-text-tertiary" />
+                    <span className="text-sm text-text-secondary">AI Insights</span>
+                  </div>
+                  <span className="font-semibold text-text-primary">{recentInsights.length}</span>
+                </div>
               </div>
             </div>
           </div>

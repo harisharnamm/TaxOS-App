@@ -21,6 +21,8 @@ import { ClientCommunications } from './pages/ClientCommunications';
 import ClientUpload from './pages/ClientUpload';
 import { SignIn } from './pages/SignIn';
 import { SignUp } from './pages/SignUp';
+import { ForgotPassword } from './pages/ForgotPassword';
+import { ResetPassword } from './pages/ResetPassword';
 
 function AppContent() {
   const location = useLocation();
@@ -41,6 +43,8 @@ function AppContent() {
       {/* Authentication routes - full width without sidebar */}
       <Route path="/signin" element={<SignIn />} />
       <Route path="/signup" element={<SignUp />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       
       {/* Client upload route - public access */}
       <Route path="/upload/:token" element={<ClientUpload />} />
@@ -71,13 +75,6 @@ function AppContent() {
         <ProtectedRoute>
           <AppLayout>
             <Tasks />
-          </AppLayout>
-        </ProtectedRoute>
-      } />
-      <Route path="/1099-hub" element={
-        <ProtectedRoute>
-          <AppLayout>
-            <Hub1099 />
           </AppLayout>
         </ProtectedRoute>
       } />

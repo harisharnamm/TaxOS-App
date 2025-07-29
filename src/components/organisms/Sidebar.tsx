@@ -89,9 +89,6 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
           <NavigationItem to="/my-zone" icon={GraduationCap}>
             My Zone
           </NavigationItem>
-          <NavigationItem to="/1099-hub" icon={FileText}>
-            1099 Hub
-          </NavigationItem>
           <NavigationItem to="/irs-notices" icon={FileText}>
             Document Management
           </NavigationItem>
