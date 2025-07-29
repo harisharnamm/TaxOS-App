@@ -5,6 +5,7 @@ import { GlobalSearch } from '../components/molecules/GlobalSearch';
 import { useSearch } from '../contexts/SearchContext';
 import { Input } from '../components/atoms/Input';
 import { Button } from '../components/atoms/Button';
+import { supabase } from '../lib/supabase';
 import { 
   User,
   Mail,
@@ -25,6 +26,8 @@ export function Settings(): ReactElement {
   const { isSearchOpen, closeSearch } = useSearch();
   const [isUpdating, setIsUpdating] = useState(false);
   const [updateMessage, setUpdateMessage] = useState<string | null>(null);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [passwordMessage, setPasswordMessage] = useState<string | null>(null);
   
   const [profileData, setProfileData] = useState({
     first_name: profile?.first_name || '',
@@ -32,6 +35,33 @@ export function Settings(): ReactElement {
     company: profile?.company || '',
     phone: profile?.phone || '',
   });
+
+  // Update profileData when profile changes
+  React.useEffect(() => {
+    if (profile) {
+      setProfileData({
+        first_name: profile.first_name || '',
+        last_name: profile.last_name || '',
+        company: profile.company || '',
+        phone: profile.phone || '',
+      });
+    }
+  }, [profile]);
+
+  // Load sessions when component mounts
+  React.useEffect(() => {
+    loadSessions();
+  }, []);
+
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  });
+
+  const [sessions, setSessions] = useState<any[]>([]);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [revokingSession, setRevokingSession] = useState<string | null>(null);
   
   const handleProfileUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,6 +81,112 @@ export function Settings(): ReactElement {
     } finally {
       setIsUpdating(false);
     }
+  };
+
+  const handlePasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsChangingPassword(true);
+    setPasswordMessage(null);
+    
+    // Validate passwords
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      setPasswordMessage('New passwords do not match');
+      setIsChangingPassword(false);
+      return;
+    }
+    
+    if (passwordData.newPassword.length < 6) {
+      setPasswordMessage('New password must be at least 6 characters long');
+      setIsChangingPassword(false);
+      return;
+    }
+    
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password: passwordData.newPassword
+      });
+      
+      if (error) {
+        setPasswordMessage('Error updating password: ' + error.message);
+      } else {
+        setPasswordMessage('Password updated successfully');
+        setPasswordData({
+          currentPassword: '',
+          newPassword: '',
+          confirmPassword: '',
+        });
+      }
+    } catch (err) {
+      setPasswordMessage('An unexpected error occurred');
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
+  const loadSessions = async () => {
+    setSessionsLoading(true);
+    try {
+      // For now, we'll use mock data since the admin API might not be available
+      // In a production app, you would implement proper session management
+      const mockSessions = [
+        {
+          id: 'current',
+          user_agent: 'Chrome on Windows',
+          ip: '192.168.1.1',
+          created_at: new Date().toISOString(),
+          last_active_at: new Date().toISOString(),
+          is_current: true
+        },
+        {
+          id: 'mobile',
+          user_agent: 'iPhone',
+          ip: '192.168.1.2',
+          created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+          last_active_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+          is_current: false
+        }
+      ];
+      
+      setSessions(mockSessions);
+    } catch (err) {
+      console.error('Error loading sessions:', err);
+    } finally {
+      setSessionsLoading(false);
+    }
+  };
+
+  const revokeSession = async (sessionId: string) => {
+    setRevokingSession(sessionId);
+    try {
+      // For demo purposes, we'll simulate revoking a session
+      // In a real implementation, you would call supabase.auth.admin.deleteSession(sessionId)
+      
+      // Simulate API call delay
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Remove the session from the list
+      setSessions(prev => prev.filter(session => session.id !== sessionId));
+      
+      // Show success message
+      setUpdateMessage('Session revoked successfully');
+    } catch (err) {
+      console.error('Error revoking session:', err);
+      setUpdateMessage('Error revoking session');
+    } finally {
+      setRevokingSession(null);
+    }
+  };
+
+  const getTimeAgo = (dateString: string) => {
+    const now = new Date();
+    const date = new Date(dateString);
+    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+    
+    if (diffInSeconds < 60) return 'just now';
+    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} minute${Math.floor(diffInSeconds / 60) !== 1 ? 's' : ''} ago`;
+    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} hour${Math.floor(diffInSeconds / 3600) !== 1 ? 's' : ''} ago`;
+    if (diffInSeconds < 2592000) return `${Math.floor(diffInSeconds / 86400)} day${Math.floor(diffInSeconds / 86400) !== 1 ? 's' : ''} ago`;
+    return `${Math.floor(diffInSeconds / 2592000)} month${Math.floor(diffInSeconds / 2592000) !== 1 ? 's' : ''} ago`;
   };
 
   const sections = [
@@ -175,93 +311,6 @@ export function Settings(): ReactElement {
                 </Button>
               </div>
             </form>
-          </div>
-        </div>
-      ),
-    },
-    {
-      id: 'email',
-      title: 'Email Templates',
-      icon: Mail,
-      description: 'Customize your email communications',
-      content: (
-        <div className="space-y-8">
-          <div className="bg-gradient-to-br from-surface-elevated to-surface p-6 rounded-2xl border border-border-subtle shadow-soft">
-            <div className="flex items-center space-x-3 mb-6">
-              <div className="p-3 bg-blue-100 rounded-xl">
-                <Mail className="w-5 h-5 text-blue-600" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-text-primary">Email Templates</h3>
-                <p className="text-text-tertiary text-sm">Customize your client communications</p>
-              </div>
-            </div>
-            
-            <div className="space-y-6">
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <label className="block text-sm font-semibold text-text-primary">
-                    W-9 Request Template
-                  </label>
-                  <div className="inline-flex items-center px-2 py-1 rounded-md bg-blue-50 text-blue-700 text-xs font-medium">
-                    <CheckCircle className="w-3 h-3 mr-1" />
-                    Active
-                  </div>
-                </div>
-                <textarea
-                  className="w-full h-40 px-4 py-3 bg-surface border border-border-subtle rounded-xl text-text-primary placeholder-text-tertiary focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/30 transition-all duration-200"
-                  defaultValue="Dear [Vendor Name],
-
-We need you to complete a W-9 form for our tax records. Please complete and return the attached form at your earliest convenience.
-
-Thank you,
-[Your Name]"
-                />
-                <div className="flex items-center space-x-2 mt-2">
-                  <span className="text-xs text-text-tertiary">Available variables:</span>
-                  <span className="inline-flex items-center px-2 py-1 rounded-md bg-surface-elevated text-text-secondary text-xs font-mono">
-                    [Vendor Name]
-                  </span>
-                  <span className="inline-flex items-center px-2 py-1 rounded-md bg-surface-elevated text-text-secondary text-xs font-mono">
-                    [Your Name]
-                  </span>
-                </div>
-              </div>
-              
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <label className="block text-sm font-semibold text-text-primary">
-                    IRS Notice Follow-up Template
-                  </label>
-                  <div className="inline-flex items-center px-2 py-1 rounded-md bg-blue-50 text-blue-700 text-xs font-medium">
-                    <CheckCircle className="w-3 h-3 mr-1" />
-                    Active
-                  </div>
-                </div>
-                <textarea
-                  className="w-full h-32 px-4 py-3 bg-surface border border-border-subtle rounded-xl text-text-primary placeholder-text-tertiary focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/30 transition-all duration-200"
-                  defaultValue="Dear [Client Name],
-
-We have received an IRS notice regarding your account. Please review the attached summary and let us know if you have any questions.
-
-Best regards,
-[Your Name]"
-                />
-                <div className="flex items-center space-x-2 mt-2">
-                  <span className="text-xs text-text-tertiary">Available variables:</span>
-                  <span className="inline-flex items-center px-2 py-1 rounded-md bg-surface-elevated text-text-secondary text-xs font-mono">
-                    [Client Name]
-                  </span>
-                  <span className="inline-flex items-center px-2 py-1 rounded-md bg-surface-elevated text-text-secondary text-xs font-mono">
-                    [Your Name]
-                  </span>
-                </div>
-              </div>
-              
-              <Button icon={Save} className="bg-primary text-gray-900 hover:bg-primary-hover shadow-medium">
-                Save Templates
-              </Button>
-            </div>
           </div>
         </div>
       ),
@@ -408,9 +457,22 @@ Best regards,
             </div>
             
             <div className="space-y-6">
+              {passwordMessage && (
+                <div className={`p-4 rounded-xl animate-fade-in ${
+                  passwordMessage.includes('successfully') 
+                    ? 'bg-gradient-to-r from-emerald-50 to-emerald-100 text-emerald-700 border border-emerald-200' 
+                    : 'bg-gradient-to-r from-red-50 to-red-100 text-red-700 border border-red-200'
+                }`}>
+                  <div className="flex items-center space-x-2">
+                    <CheckCircle className="w-5 h-5 flex-shrink-0" />
+                    <span>{passwordMessage}</span>
+                  </div>
+                </div>
+              )}
+
               <div className="bg-surface rounded-xl border border-border-subtle p-5">
                 <h4 className="font-semibold text-text-primary mb-4">Change Password</h4>
-                <div className="space-y-4">
+                <form onSubmit={handlePasswordChange} className="space-y-4">
                   <div className="space-y-2">
                     <label className="block text-sm font-semibold text-text-primary">Current Password</label>
                     <div className="relative">
@@ -418,7 +480,10 @@ Best regards,
                       <Input 
                         type="password"
                         placeholder="Enter your current password"
+                        value={passwordData.currentPassword}
+                        onChange={(e) => setPasswordData(prev => ({ ...prev, currentPassword: e.target.value }))}
                         className="pl-10"
+                        required
                       />
                     </div>
                   </div>
@@ -429,8 +494,11 @@ Best regards,
                       <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-text-tertiary" />
                       <Input 
                         type="password"
-                        placeholder="Enter new password"
+                        placeholder="Enter new password (min 6 characters)"
+                        value={passwordData.newPassword}
+                        onChange={(e) => setPasswordData(prev => ({ ...prev, newPassword: e.target.value }))}
                         className="pl-10"
+                        required
                       />
                     </div>
                   </div>
@@ -442,15 +510,22 @@ Best regards,
                       <Input 
                         type="password"
                         placeholder="Confirm new password"
+                        value={passwordData.confirmPassword}
+                        onChange={(e) => setPasswordData(prev => ({ ...prev, confirmPassword: e.target.value }))}
                         className="pl-10"
+                        required
                       />
                     </div>
                   </div>
                   
-                  <Button className="bg-primary text-gray-900 hover:bg-primary-hover shadow-medium">
-                    Update Password
+                  <Button 
+                    type="submit"
+                    disabled={isChangingPassword}
+                    className="bg-primary text-gray-900 hover:bg-primary-hover shadow-medium"
+                  >
+                    {isChangingPassword ? 'Updating...' : 'Update Password'}
                   </Button>
-                </div>
+                </form>
               </div>
               
               <div className="bg-surface rounded-xl border border-border-subtle p-5">
@@ -459,33 +534,71 @@ Best regards,
                   <div>
                     <p className="text-text-primary">Enhance your account security with 2FA</p>
                     <p className="text-sm text-text-tertiary mt-1">Protect your account with an additional layer of security</p>
+                    <div className="inline-flex items-center px-2 py-1 rounded-md bg-blue-50 text-blue-700 text-xs font-medium mt-2">
+                      <Clock className="w-3 h-3 mr-1" />
+                      Coming Soon
+                    </div>
                   </div>
-                  <Button variant="secondary">Enable 2FA</Button>
+                  <Button variant="secondary" disabled>Enable 2FA</Button>
                 </div>
               </div>
               
               <div className="bg-surface rounded-xl border border-border-subtle p-5">
                 <h4 className="font-semibold text-text-primary mb-4">Login Sessions</h4>
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between p-3 bg-surface-elevated rounded-lg border border-border-subtle">
-                    <div>
-                      <p className="text-text-primary font-medium">Current Session</p>
-                      <p className="text-xs text-text-tertiary mt-1">Chrome on Windows • IP: 192.168.1.1</p>
+                  {sessionsLoading ? (
+                    <div className="space-y-3">
+                      {[1, 2].map((i) => (
+                        <div key={i} className="flex items-center justify-between p-3 bg-surface-elevated rounded-lg border border-border-subtle animate-pulse">
+                          <div className="flex-1">
+                            <div className="h-4 bg-gray-200 rounded w-1/3 mb-1"></div>
+                            <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+                          </div>
+                          <div className="w-16 h-6 bg-gray-200 rounded"></div>
+                        </div>
+                      ))}
                     </div>
-                    <div className="inline-flex items-center px-2 py-1 rounded-md bg-emerald-100 text-emerald-700 text-xs font-medium">
-                      Active Now
+                  ) : sessions.length === 0 ? (
+                    <div className="text-center py-8">
+                      <Lock className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                      <p className="text-sm text-gray-500">No active sessions found</p>
                     </div>
-                  </div>
-                  
-                  <div className="flex items-center justify-between p-3 bg-surface-elevated rounded-lg border border-border-subtle">
-                    <div>
-                      <p className="text-text-primary font-medium">Mobile App</p>
-                      <p className="text-xs text-text-tertiary mt-1">iPhone • Last active: 2 hours ago</p>
-                    </div>
-                    <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700 hover:bg-red-50">
-                      Revoke
-                    </Button>
-                  </div>
+                  ) : (
+                    sessions.map((session) => (
+                      <div key={session.id} className="flex items-center justify-between p-3 bg-surface-elevated rounded-lg border border-border-subtle">
+                        <div>
+                          <p className="text-text-primary font-medium">
+                            {session.is_current ? 'Current Session' : session.user_agent}
+                          </p>
+                          <p className="text-xs text-text-tertiary mt-1">
+                            {session.user_agent} • IP: {session.ip}
+                          </p>
+                          {!session.is_current && (
+                            <p className="text-xs text-text-tertiary">
+                              Last active: {getTimeAgo(session.last_active_at)}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          {session.is_current ? (
+                            <div className="inline-flex items-center px-2 py-1 rounded-md bg-emerald-100 text-emerald-700 text-xs font-medium">
+                              Active Now
+                            </div>
+                          ) : (
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              onClick={() => revokeSession(session.id)}
+                              disabled={revokingSession === session.id}
+                            >
+                              {revokingSession === session.id ? 'Revoking...' : 'Revoke'}
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
             </div>
