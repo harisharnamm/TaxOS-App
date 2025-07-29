@@ -66,6 +66,20 @@ export function ClientCommunications() {
   const toast = useToast();
   const [showRequestDialog, setShowRequestDialog] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<DocumentRequest | null>(null);
+  const [showAllCommunicationsModal, setShowAllCommunicationsModal] = useState(false);
+  const [allCommunications, setAllCommunications] = useState<any[]>([]);
+  const [allCommunicationsLoading, setAllCommunicationsLoading] = useState(false);
+  const [showBulkReminderDialog, setShowBulkReminderDialog] = useState(false);
+  const [showClientQueryDialog, setShowClientQueryDialog] = useState(false);
+  const [showReportDialog, setShowReportDialog] = useState(false);
+  const [isBulkSending, setIsBulkSending] = useState(false);
+  const [isCreatingQuery, setIsCreatingQuery] = useState(false);
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+  const [queryForm, setQueryForm] = useState({ clientId: '', title: '', description: '' });
+  const [reportFilters, setReportFilters] = useState({ dateFrom: '', dateTo: '', status: 'all', clientId: '' });
+  const [selectedRequests, setSelectedRequests] = useState<string[]>([]);
+  const [recentCommunications, setRecentCommunications] = useState<any[]>([]);
+  const [communicationsLoading, setCommunicationsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [isLoading, setIsLoading] = useState(true);
@@ -103,6 +117,11 @@ export function ClientCommunications() {
 
     loadDocumentRequests();
   }, [toast]);
+
+  // Add useEffect to load recent communications
+  useEffect(() => {
+    loadRecentCommunications();
+  }, []);
 
   // Get client name from client ID
   const getClientName = (clientId: string) => {
@@ -254,26 +273,210 @@ export function ClientCommunications() {
   };
 
   const refreshDocumentRequests = async () => {
+    setIsLoading(true);
     try {
-      setIsLoading(true);
-      console.log('Refreshing document requests...');
-      
-      // First, mark any overdue requests
-      try {
-        await supabase.rpc('mark_overdue_requests');
-        console.log('Marked overdue requests');
-      } catch (overdueError) {
-        console.warn('Could not mark overdue requests:', overdueError);
-      }
-      
-      const requests = await documentRequestsApi.getAll();
-      console.log('Refreshed document requests:', requests);
-      setDocumentRequests(requests);
+      await loadDocumentRequests();
     } catch (error) {
-      console.error('Failed to refresh document requests:', error);
-      toast.error('Error', 'Failed to refresh document requests');
+      console.error('Error refreshing document requests:', error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Add function to load all communications
+  const loadAllCommunications = async () => {
+    setAllCommunicationsLoading(true);
+    try {
+      // Get all email communications
+      const { data: emailComms } = await supabase
+        .from('email_communications')
+        .select(`
+          id,
+          type,
+          status,
+          created_at,
+          document_requests!inner(
+            title,
+            clients!inner(name)
+          )
+        `)
+        .eq('user_id', (await supabase.auth.getUser()).data.user?.id)
+        .order('created_at', { ascending: false });
+
+      // Get all document uploads
+      const { data: uploads } = await supabase
+        .from('document_request_items')
+        .select(`
+          id,
+          uploaded_at,
+          document_name,
+          document_requests!inner(
+            title,
+            clients!inner(name)
+          )
+        `)
+        .eq('status', 'uploaded')
+        .not('uploaded_at', 'is', null)
+        .order('uploaded_at', { ascending: false });
+
+      // Get all client queries
+      const { data: queries } = await supabase
+        .from('client_queries')
+        .select(`
+          id,
+          title,
+          description,
+          created_at,
+          clients!inner(name)
+        `)
+        .eq('user_id', (await supabase.auth.getUser()).data.user?.id)
+        .order('created_at', { ascending: false });
+
+      // Combine and sort all communications
+      const allComms = [
+        ...(emailComms || []).map(comm => ({
+          ...comm,
+          type: 'email',
+          displayType: comm.type === 'initial' ? 'Document Request Sent' : 'Reminder Sent',
+          description: `${comm.type === 'initial' ? 'Sent' : 'Sent reminder for'} ${comm.document_requests?.title} to ${comm.document_requests?.clients?.name}`,
+          icon: 'Mail',
+          iconColor: 'blue'
+        })),
+        ...(uploads || []).map(upload => ({
+          ...upload,
+          type: 'upload',
+          displayType: 'Documents Received',
+          description: `${upload.document_requests?.clients?.name} uploaded ${upload.document_name}`,
+          icon: 'FileText',
+          iconColor: 'emerald',
+          created_at: upload.uploaded_at
+        })),
+        ...(queries || []).map(query => ({
+          ...query,
+          type: 'query',
+          displayType: 'Client Query',
+          description: `${query.clients?.name}: ${query.title}`,
+          icon: 'MessageSquare',
+          iconColor: 'amber'
+        }))
+      ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+      setAllCommunications(allComms);
+    } catch (error) {
+      console.error('Error loading all communications:', error);
+    } finally {
+      setAllCommunicationsLoading(false);
+    }
+  };
+
+  // Add utility function for time ago
+  const getTimeAgo = (dateString: string) => {
+    const now = new Date();
+    const date = new Date(dateString);
+    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+    
+    if (diffInSeconds < 60) return 'just now';
+    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} minute${Math.floor(diffInSeconds / 60) !== 1 ? 's' : ''} ago`;
+    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} hour${Math.floor(diffInSeconds / 3600) !== 1 ? 's' : ''} ago`;
+    if (diffInSeconds < 2592000) return `${Math.floor(diffInSeconds / 86400)} day${Math.floor(diffInSeconds / 86400) !== 1 ? 's' : ''} ago`;
+    return `${Math.floor(diffInSeconds / 2592000)} month${Math.floor(diffInSeconds / 2592000) !== 1 ? 's' : ''} ago`;
+  };
+
+  // Add function to handle bulk reminder selection
+  const handleBulkReminderClick = () => {
+    // For now, select all pending/partial requests
+    const pendingRequests = documentRequests.filter(req => req.status === 'pending' || req.status === 'partial');
+    setSelectedRequests(pendingRequests.map(req => req.id));
+    setShowBulkReminderDialog(true);
+  };
+
+  // Add function to load recent communications
+  const loadRecentCommunications = async () => {
+    setCommunicationsLoading(true);
+    try {
+      // Get recent email communications
+      const { data: emailComms } = await supabase
+        .from('email_communications')
+        .select(`
+          id,
+          type,
+          status,
+          created_at,
+          document_requests!inner(
+            title,
+            clients!inner(name)
+          )
+        `)
+        .eq('user_id', (await supabase.auth.getUser()).data.user?.id)
+        .order('created_at', { ascending: false })
+        .limit(5);
+
+      // Get recent document uploads
+      const { data: uploads } = await supabase
+        .from('document_request_items')
+        .select(`
+          id,
+          uploaded_at,
+          document_name,
+          document_requests!inner(
+            title,
+            clients!inner(name)
+          )
+        `)
+        .eq('status', 'uploaded')
+        .not('uploaded_at', 'is', null)
+        .order('uploaded_at', { ascending: false })
+        .limit(5);
+
+      // Get recent client queries
+      const { data: queries } = await supabase
+        .from('client_queries')
+        .select(`
+          id,
+          title,
+          description,
+          created_at,
+          clients!inner(name)
+        `)
+        .eq('user_id', (await supabase.auth.getUser()).data.user?.id)
+        .order('created_at', { ascending: false })
+        .limit(5);
+
+      // Combine and sort all communications
+      const allComms = [
+        ...(emailComms || []).map(comm => ({
+          ...comm,
+          type: 'email',
+          displayType: comm.type === 'initial' ? 'Document Request Sent' : 'Reminder Sent',
+          description: `${comm.type === 'initial' ? 'Sent' : 'Sent reminder for'} ${comm.document_requests?.title} to ${comm.document_requests?.clients?.name}`,
+          icon: 'Mail',
+          iconColor: 'blue'
+        })),
+        ...(uploads || []).map(upload => ({
+          ...upload,
+          type: 'upload',
+          displayType: 'Documents Received',
+          description: `${upload.document_requests?.clients?.name} uploaded ${upload.document_name}`,
+          icon: 'FileText',
+          iconColor: 'emerald',
+          created_at: upload.uploaded_at
+        })),
+        ...(queries || []).map(query => ({
+          ...query,
+          type: 'query',
+          displayType: 'Client Query',
+          description: `${query.clients?.name}: ${query.title}`,
+          icon: 'MessageSquare',
+          iconColor: 'amber'
+        }))
+      ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      .slice(0, 5); // Get only the 5 most recent
+
+      setRecentCommunications(allComms);
+    } catch (error) {
+      console.error('Error loading recent communications:', error);
+    } finally {
+      setCommunicationsLoading(false);
     }
   };
 
@@ -648,54 +851,59 @@ export function ClientCommunications() {
             
             <div className="p-6">
               <div className="space-y-4">
-                <div className="flex items-start space-x-4 p-4 bg-surface rounded-xl border border-border-subtle">
-                  <div className="p-2 bg-blue-100 rounded-lg">
-                    <Mail className="w-4 h-4 text-blue-600" />
+                {communicationsLoading ? (
+                  <div className="space-y-4">
+                    {[1, 2, 3].map((i) => (
+                      <div key={i} className="flex items-start space-x-4 p-4 bg-surface rounded-xl border border-border-subtle animate-pulse">
+                        <div className="w-8 h-8 bg-gray-200 rounded-lg"></div>
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between mb-1">
+                            <div className="h-4 bg-gray-200 rounded w-1/3"></div>
+                            <div className="w-16 h-3 bg-gray-200 rounded"></div>
+                          </div>
+                          <div className="h-3 bg-gray-200 rounded w-2/3"></div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between mb-1">
-                      <Tooltip content="Email notification sent to client">
-                      </Tooltip>
-                      <h4 className="font-medium text-text-primary">Document Request Sent</h4>
-                      <span className="text-xs text-text-tertiary">2 hours ago</span>
+                ) : recentCommunications.length === 0 ? (
+                  <div className="text-center py-8">
+                    <MessageSquare className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                    <p className="text-sm text-gray-500">No recent communications</p>
+                  </div>
+                ) : (
+                  recentCommunications.map((comm) => (
+                    <div key={comm.id} className="flex items-start space-x-4 p-4 bg-surface rounded-xl border border-border-subtle">
+                      <div className={`p-2 rounded-lg ${
+                        comm.type === 'email' ? 'bg-blue-100' : comm.type === 'upload' ? 'bg-emerald-100' : 'bg-amber-100'
+                      }`}>
+                        {comm.icon === 'Mail' ? <Mail className="w-4 h-4 text-blue-600" /> : 
+                         comm.icon === 'FileText' ? <FileText className="w-4 h-4 text-emerald-600" /> : 
+                         <MessageSquare className="w-4 h-4 text-amber-600" />}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between mb-1">
+                          <Tooltip content={
+                            comm.type === 'email' ? 'Email notification sent to client' :
+                            comm.type === 'upload' ? 'Client uploaded requested documents' :
+                            'Client sent a message with a question'
+                          }>
+                          </Tooltip>
+                          <h4 className="font-medium text-text-primary">{comm.displayType}</h4>
+                          <span className="text-xs text-text-tertiary">{getTimeAgo(comm.created_at)}</span>
+                        </div>
+                        <p className="text-sm text-text-secondary">{comm.description}</p>
+                      </div>
                     </div>
-                    <p className="text-sm text-text-secondary">Sent tax document request to John Smith</p>
-                  </div>
-                </div>
-                
-                <div className="flex items-start space-x-4 p-4 bg-surface rounded-xl border border-border-subtle">
-                  <div className="p-2 bg-emerald-100 rounded-lg">
-                    <FileText className="w-4 h-4 text-emerald-600" />
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between mb-1">
-                      <Tooltip content="Client uploaded requested documents">
-                      </Tooltip>
-                      <h4 className="font-medium text-text-primary">Documents Received</h4>
-                      <span className="text-xs text-text-tertiary">1 day ago</span>
-                    </div>
-                    <p className="text-sm text-text-secondary">Sarah Johnson uploaded 3 documents</p>
-                  </div>
-                </div>
-                
-                <div className="flex items-start space-x-4 p-4 bg-surface rounded-xl border border-border-subtle">
-                  <div className="p-2 bg-amber-100 rounded-lg">
-                    <MessageSquare className="w-4 h-4 text-amber-600" />
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between mb-1">
-                      <Tooltip content="Client sent a message with a question">
-                      </Tooltip>
-                      <h4 className="font-medium text-text-primary">Client Query</h4>
-                      <span className="text-xs text-text-tertiary">2 days ago</span>
-                    </div>
-                    <p className="text-sm text-text-secondary">Michael Brown asked about expense documentation</p>
-                  </div>
-                </div>
+                  ))
+                )}
               </div>
               
               <div className="mt-6 text-center">
-                <Button variant="ghost" size="sm">
+                <Button variant="ghost" size="sm" onClick={async () => {
+                  await loadAllCommunications();
+                  setShowAllCommunicationsModal(true);
+                }}>
                   View All Communications
                 </Button>
               </div>
@@ -724,6 +932,7 @@ export function ClientCommunications() {
                   variant="secondary" 
                   className="w-full justify-start hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200" 
                   icon={Mail}
+                  onClick={handleBulkReminderClick}
                 >
                   <Tooltip content="Send reminders to all clients with pending documents">
                   </Tooltip>
@@ -734,6 +943,7 @@ export function ClientCommunications() {
                   variant="secondary" 
                   className="w-full justify-start hover:bg-purple-50 hover:text-purple-600 hover:border-purple-200" 
                   icon={MessageSquare}
+                  onClick={() => setShowClientQueryDialog(true)}
                 >
                   <Tooltip content="Start a new conversation with a client">
                   </Tooltip>
@@ -744,6 +954,7 @@ export function ClientCommunications() {
                   variant="secondary" 
                   className="w-full justify-start hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200" 
                   icon={Download}
+                  onClick={() => setShowReportDialog(true)}
                 >
                   <Tooltip content="Generate a report of all document requests and their status">
                   </Tooltip>
@@ -899,7 +1110,7 @@ export function ClientCommunications() {
                   <div className="flex items-center space-x-2 mt-1">
                     {getStatusBadge(selectedRequest.status)}
                     <span className="text-sm text-text-tertiary">
-                      Client: {getClientName(selectedRequest.clientId)}
+                      Client: {getClientName(selectedRequest.client_id)}
                     </span>
                   </div>
                 </div>
@@ -926,12 +1137,12 @@ export function ClientCommunications() {
                     </div>
                     <div>
                       <p className="text-sm font-medium text-text-tertiary">Created On</p>
-                      <p className="text-text-primary">{formatDate(selectedRequest.createdAt)}</p>
+                      <p className="text-text-primary">{formatDate(selectedRequest.created_at)}</p>
                     </div>
-                    {selectedRequest.lastReminder && (
+                    {selectedRequest.last_reminder_sent && (
                       <div>
                         <p className="text-sm font-medium text-text-tertiary">Last Reminder</p>
-                        <p className="text-text-primary">{formatDate(selectedRequest.lastReminder)}</p>
+                        <p className="text-text-primary">{formatDate(selectedRequest.last_reminder_sent)}</p>
                       </div>
                     )}
                   </div>
@@ -1118,6 +1329,332 @@ export function ClientCommunications() {
                   </Button>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* All Communications Modal */}
+      {showAllCommunicationsModal && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-surface-elevated rounded-2xl shadow-premium max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-scale-in">
+            <div className="p-6 border-b border-border-subtle">
+              <h2 className="text-xl font-semibold text-text-primary">All Communications</h2>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              {allCommunicationsLoading ? (
+                <div className="text-center py-12">
+                  <SkeletonText className="w-full" />
+                </div>
+              ) : allCommunications.length === 0 ? (
+                <EmptyState
+                  icon={Mail}
+                  title="No Communications Found"
+                  description="No communications match your search criteria. Try adjusting your filters."
+                />
+              ) : (
+                <div className="divide-y divide-border-subtle">
+                  {allCommunications.map((comm) => (
+                    <div key={comm.id} className="p-6 hover:bg-surface-hover transition-all duration-200">
+                      <div className="flex items-center space-x-3 mb-2">
+                        <div className={`p-2 rounded-lg ${
+                          comm.type === 'email' ? 'bg-blue-100' : comm.type === 'upload' ? 'bg-emerald-100' : 'bg-amber-100'
+                        }`}>
+                          {comm.icon === 'Mail' ? <Mail className="w-4 h-4 text-blue-600" /> : comm.icon === 'FileText' ? <FileText className="w-4 h-4 text-emerald-600" /> : <MessageSquare className="w-4 h-4 text-amber-600" />}
+                        </div>
+                        <div>
+                          <h4 className="font-medium text-text-primary">{comm.displayType}</h4>
+                          <p className="text-sm text-text-secondary">{comm.description}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center text-xs text-text-tertiary">
+                        <Calendar className="w-4 h-4 mr-1" />
+                        {formatDate(comm.created_at)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="p-6 border-t border-border-subtle bg-surface">
+              <div className="flex justify-end">
+                <Button variant="secondary" onClick={() => setShowAllCommunicationsModal(false)}>
+                  Close
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Reminder Dialog */}
+      {showBulkReminderDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col">
+            <h3 className="text-lg font-semibold mb-4">Send Bulk Reminders</h3>
+            
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-sm text-gray-600">
+                Select requests to send reminder emails to:
+              </p>
+              <div className="flex items-center space-x-2">
+                <Button 
+                  variant="secondary" 
+                  size="sm"
+                  onClick={() => {
+                    const pendingRequests = documentRequests.filter(req => req.status === 'pending' || req.status === 'partial');
+                    setSelectedRequests(pendingRequests.map(req => req.id));
+                  }}
+                >
+                  Select All Pending
+                </Button>
+                <Button 
+                  variant="secondary" 
+                  size="sm"
+                  onClick={() => setSelectedRequests([])}
+                >
+                  Clear All
+                </Button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto border rounded-lg">
+              <div className="max-h-96 overflow-y-auto">
+                {documentRequests
+                  .filter(req => req.status === 'pending' || req.status === 'partial')
+                  .map((request) => (
+                    <div 
+                      key={request.id} 
+                      className="flex items-center p-3 border-b hover:bg-gray-50 last:border-b-0"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedRequests.includes(request.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedRequests(prev => [...prev, request.id]);
+                          } else {
+                            setSelectedRequests(prev => prev.filter(id => id !== request.id));
+                          }
+                        }}
+                        className="mr-3"
+                      />
+                      <div className="flex-1">
+                        <div className="font-medium">{getClientName(request.client_id)}</div>
+                        <div className="text-sm text-gray-600">{request.title}</div>
+                        <div className="text-xs text-gray-500">
+                          Due: {formatDate(request.due_date)} • Status: {request.status}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                {documentRequests.filter(req => req.status === 'pending' || req.status === 'partial').length === 0 && (
+                  <div className="p-4 text-center text-gray-500">
+                    No pending or partial requests found.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between mt-4 pt-4 border-t">
+              <div className="text-sm text-gray-600">
+                {selectedRequests.length} request{selectedRequests.length !== 1 ? 's' : ''} selected
+              </div>
+              <div className="flex space-x-2">
+                <Button 
+                  variant="secondary" 
+                  onClick={() => {
+                    setShowBulkReminderDialog(false);
+                    setSelectedRequests([]);
+                  }} 
+                  className="flex-1"
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  variant="primary" 
+                  onClick={async () => {
+                    if (selectedRequests.length === 0) {
+                      toast.error('No Selection', 'Please select at least one request to send reminders.');
+                      return;
+                    }
+                    
+                    setIsBulkSending(true);
+                    try {
+                      for (const requestId of selectedRequests) {
+                        await handleSendReminder(requestId);
+                      }
+                      setShowBulkReminderDialog(false);
+                      setSelectedRequests([]);
+                      toast.success('Reminders sent', `Successfully sent ${selectedRequests.length} reminder${selectedRequests.length !== 1 ? 's' : ''}.`);
+                    } catch (error) {
+                      toast.error('Error', 'Failed to send some reminders.');
+                      console.error('Bulk reminder error:', error);
+                    } finally {
+                      setIsBulkSending(false);
+                    }
+                  }} 
+                  disabled={isBulkSending || selectedRequests.length === 0} 
+                  className="flex-1"
+                >
+                  {isBulkSending ? 'Sending...' : `Send ${selectedRequests.length} Reminder${selectedRequests.length !== 1 ? 's' : ''}`}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Client Query Dialog */}
+      {showClientQueryDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 max-w-md w-full">
+            <h3 className="text-lg font-semibold mb-4">Create Client Query</h3>
+            <div className="mb-2">
+              <label className="block text-sm mb-1">Client</label>
+              <select
+                value={queryForm.clientId}
+                onChange={e => setQueryForm(f => ({ ...f, clientId: e.target.value }))}
+                className="w-full border rounded px-2 py-1"
+              >
+                <option value="">Select a client</option>
+                {clients.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="mb-2">
+              <label className="block text-sm mb-1">Title</label>
+              <input
+                type="text"
+                value={queryForm.title}
+                onChange={e => setQueryForm(f => ({ ...f, title: e.target.value }))}
+                className="w-full border rounded px-2 py-1"
+              />
+            </div>
+            <div className="mb-4">
+              <label className="block text-sm mb-1">Description</label>
+              <textarea
+                value={queryForm.description}
+                onChange={e => setQueryForm(f => ({ ...f, description: e.target.value }))}
+                className="w-full border rounded px-2 py-1"
+                rows={3}
+              />
+            </div>
+            <div className="flex space-x-2">
+              <Button variant="secondary" onClick={() => setShowClientQueryDialog(false)} className="flex-1">Cancel</Button>
+              <Button variant="primary" onClick={async () => {
+                setIsCreatingQuery(true);
+                try {
+                  await supabase.from('client_queries').insert({
+                    user_id: (await supabase.auth.getUser()).data.user?.id,
+                    client_id: queryForm.clientId,
+                    title: queryForm.title,
+                    description: queryForm.description
+                  });
+                  setShowClientQueryDialog(false);
+                  setQueryForm({ clientId: '', title: '', description: '' });
+                  toast.success('Query Created', 'Client query has been created.');
+                } catch (e) {
+                  toast.error('Error', 'Failed to create client query.');
+                } finally {
+                  setIsCreatingQuery(false);
+                }
+              }} disabled={isCreatingQuery || !queryForm.clientId || !queryForm.title || !queryForm.description} className="flex-1">
+                {isCreatingQuery ? 'Creating...' : 'Create Query'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Download Report Dialog */}
+      {showReportDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 max-w-md w-full">
+            <h3 className="text-lg font-semibold mb-4">Download Document Report</h3>
+            <div className="mb-2">
+              <label className="block text-sm mb-1">From</label>
+              <input
+                type="date"
+                value={reportFilters.dateFrom}
+                onChange={e => setReportFilters(f => ({ ...f, dateFrom: e.target.value }))}
+                className="w-full border rounded px-2 py-1"
+              />
+            </div>
+            <div className="mb-2">
+              <label className="block text-sm mb-1">To</label>
+              <input
+                type="date"
+                value={reportFilters.dateTo}
+                onChange={e => setReportFilters(f => ({ ...f, dateTo: e.target.value }))}
+                className="w-full border rounded px-2 py-1"
+              />
+            </div>
+            <div className="mb-2">
+              <label className="block text-sm mb-1">Status</label>
+              <select
+                value={reportFilters.status}
+                onChange={e => setReportFilters(f => ({ ...f, status: e.target.value }))}
+                className="w-full border rounded px-2 py-1"
+              >
+                <option value="all">All</option>
+                <option value="pending">Pending</option>
+                <option value="partial">Partial</option>
+                <option value="complete">Complete</option>
+                <option value="overdue">Overdue</option>
+              </select>
+            </div>
+            <div className="mb-4">
+              <label className="block text-sm mb-1">Client</label>
+              <select
+                value={reportFilters.clientId}
+                onChange={e => setReportFilters(f => ({ ...f, clientId: e.target.value }))}
+                className="w-full border rounded px-2 py-1"
+              >
+                <option value="">All Clients</option>
+                {clients.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex space-x-2">
+              <Button variant="secondary" onClick={() => setShowReportDialog(false)} className="flex-1">Cancel</Button>
+              <Button variant="primary" onClick={async () => {
+                setIsGeneratingReport(true);
+                try {
+                  // Fetch filtered data
+                  let query = supabase.from('document_requests').select('*');
+                  if (reportFilters.dateFrom) query = query.gte('created_at', reportFilters.dateFrom);
+                  if (reportFilters.dateTo) query = query.lte('created_at', reportFilters.dateTo);
+                  if (reportFilters.status !== 'all') query = query.eq('status', reportFilters.status);
+                  if (reportFilters.clientId) query = query.eq('client_id', reportFilters.clientId);
+                  const { data } = await query;
+                  // Convert to CSV
+                  const csv = [
+                    'Title,Client,Status,Due Date,Created At',
+                    ...(data || []).map((r: any) => `${r.title},${getClientName(r.client_id)},${r.status},${r.due_date},${r.created_at}`)
+                  ].join('\n');
+                  // Download
+                  const blob = new Blob([csv], { type: 'text/csv' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = 'document_report.csv';
+                  a.click();
+                  URL.revokeObjectURL(url);
+                  setShowReportDialog(false);
+                  toast.success('Report Downloaded', 'Document report has been downloaded.');
+                } catch (e) {
+                  toast.error('Error', 'Failed to generate report.');
+                } finally {
+                  setIsGeneratingReport(false);
+                }
+              }} disabled={isGeneratingReport} className="flex-1">
+                {isGeneratingReport ? 'Generating...' : 'Download'}
+              </Button>
             </div>
           </div>
         </div>
