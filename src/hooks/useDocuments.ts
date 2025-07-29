@@ -61,7 +61,7 @@ export function useDocuments(clientId?: string) {
       
       // Remove from local state
       setDocuments(prev => prev.filter(doc => doc.id !== documentId));
-      return { success: true };
+      return { success: true, error: null };
     } catch (err: any) {
       setError(err.message);
       return { success: false, error: err.message };

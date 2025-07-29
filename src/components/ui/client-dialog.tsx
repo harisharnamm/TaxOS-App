@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { User, Mail, Phone, Building, Calendar, FileText, Receipt, CreditCard, Banknote, AlertTriangle, FileCheck, CheckCircle, X } from 'lucide-react';
+import { User, Mail, Phone, Building, Calendar, FileText, Receipt, CreditCard, Banknote, AlertTriangle, FileCheck, CheckCircle, X, Tag } from 'lucide-react';
 import { Button } from '../atoms/Button';
 import { Input } from '../atoms/Input';
 import { cn } from '../../lib/utils';
@@ -12,6 +12,7 @@ interface ClientDialogProps {
     email: string;
     phone?: string;
     address?: string;
+    category: string;
     taxYear: number;
     entityType: string;
     requiredDocuments: string[];
@@ -78,6 +79,22 @@ const documentTypes = [
   }
 ];
 
+const clientCategories = [
+  { id: 'saas', name: 'SaaS', description: 'Software as a Service companies' },
+  { id: 'real_estate', name: 'Real Estate', description: 'Real estate agencies and property management' },
+  { id: 'non_profit', name: 'Non Profit', description: 'Non-profit organizations and charities' },
+  { id: 'ecommerce', name: 'eCommerce', description: 'Online retail and e-commerce businesses' },
+  { id: 'consulting', name: 'Consulting', description: 'Professional consulting services' },
+  { id: 'healthcare', name: 'Healthcare', description: 'Medical practices and healthcare providers' },
+  { id: 'manufacturing', name: 'Manufacturing', description: 'Manufacturing and production companies' },
+  { id: 'retail', name: 'Retail', description: 'Brick and mortar retail businesses' },
+  { id: 'restaurant', name: 'Restaurant', description: 'Food service and hospitality' },
+  { id: 'construction', name: 'Construction', description: 'Construction and contracting services' },
+  { id: 'professional_services', name: 'Professional Services', description: 'Legal, accounting, and other professional services' },
+  { id: 'technology', name: 'Technology', description: 'Technology companies and IT services' },
+  { id: 'other', name: 'Other', description: 'Other business types' }
+];
+
 const categories = [
   { id: 'income', name: '📊 Income Documents', color: 'emerald' },
   { id: 'financial', name: '💳 Financial Records', color: 'blue' },
@@ -95,6 +112,7 @@ export function ClientDialog({ isOpen, onClose, onSubmit, loading = false }: Cli
     email: '',
     phone: '',
     address: '',
+    category: '',
     taxYear: new Date().getFullYear(),
     entityType: 'individual'
   });
@@ -123,6 +141,10 @@ export function ClientDialog({ isOpen, onClose, onSubmit, loading = false }: Cli
 
     if (formData.taxYear < 2020 || formData.taxYear > new Date().getFullYear() + 1) {
       newErrors.taxYear = 'Please enter a valid tax year';
+    }
+
+    if (!formData.category) {
+      newErrors.category = 'Please select a client category';
     }
 
     setErrors(newErrors);
@@ -154,6 +176,7 @@ export function ClientDialog({ isOpen, onClose, onSubmit, loading = false }: Cli
         email: formData.email.trim(),
         phone: formData.phone.trim() || undefined,
         address: formData.address.trim() || undefined,
+        category: formData.category,
         taxYear: formData.taxYear,
         entityType: formData.entityType,
         requiredDocuments: selectedDocuments
@@ -165,6 +188,7 @@ export function ClientDialog({ isOpen, onClose, onSubmit, loading = false }: Cli
         email: '',
         phone: '',
         address: '',
+        category: '',
         taxYear: new Date().getFullYear(),
         entityType: 'individual'
       });
@@ -183,6 +207,7 @@ export function ClientDialog({ isOpen, onClose, onSubmit, loading = false }: Cli
       email: '',
       phone: '',
       address: '',
+      category: '',
       taxYear: new Date().getFullYear(),
       entityType: 'individual'
     });
@@ -323,7 +348,7 @@ export function ClientDialog({ isOpen, onClose, onSubmit, loading = false }: Cli
               </div>
 
               {/* Tax Year and Entity Type */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mb-4 sm:mb-6">
                 <div className="space-y-2">
                   <label className="block text-sm font-semibold text-text-primary">Tax Year *</label>
                   <div className="relative">
@@ -358,6 +383,53 @@ export function ClientDialog({ isOpen, onClose, onSubmit, loading = false }: Cli
                     <option value="partnership">Partnership</option>
                   </select>
                 </div>
+              </div>
+
+              {/* Client Category */}
+              <div className="space-y-3">
+                <label className="block text-sm font-semibold text-text-primary">Business Category *</label>
+                <p className="text-xs text-text-tertiary mb-3">
+                  Select the category that best describes your client's business type
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {clientCategories.map(category => {
+                    const isSelected = formData.category === category.id;
+                    
+                    return (
+                      <div
+                        key={category.id}
+                        onClick={() => handleInputChange('category', category.id)}
+                        className={cn(
+                          "cursor-pointer rounded-xl border p-4 transition-all duration-200 hover:shadow-medium",
+                          isSelected 
+                            ? "border-primary bg-primary/5 shadow-soft" 
+                            : "border-border-subtle hover:border-border-light bg-surface-elevated"
+                        )}
+                      >
+                        <div className="flex items-start space-x-3">
+                          <div className={cn(
+                            "p-2 rounded-lg transition-all duration-200",
+                            isSelected 
+                              ? "bg-primary text-gray-900" 
+                              : "bg-surface group-hover:bg-surface-hover"
+                          )}>
+                            <Tag className="w-4 h-4" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h5 className="font-semibold text-sm text-text-primary">{category.name}</h5>
+                            <p className="text-xs text-text-tertiary mt-1 leading-relaxed">{category.description}</p>
+                          </div>
+                          {isSelected && (
+                            <CheckCircle className="w-5 h-5 text-primary flex-shrink-0" />
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                {errors.category && (
+                  <p className="text-sm text-red-600 font-medium">{errors.category}</p>
+                )}
               </div>
             </div>
           )}

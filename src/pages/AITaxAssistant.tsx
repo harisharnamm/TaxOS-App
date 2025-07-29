@@ -8,7 +8,6 @@ import { Badge } from '../components/atoms/Badge';
 import { Send, Sparkles, FileText, Calculator, Trash2, RefreshCw, Paperclip, X, Users, AlertTriangle, User, ChevronDown } from 'lucide-react';
 import { useChat } from '../hooks/useChat';
 import { useClients } from '../hooks/useClients';
-import { useIRSNotices } from '../hooks/useIRSNotices';
 import { useVendors } from '../hooks/useVendors';
 import { useDocuments } from '../hooks/useDocuments';
 import { useDocumentUpload } from '../hooks/useDocumentUpload';
@@ -27,7 +26,6 @@ interface ChatContext {
 
 export function AITaxAssistant() {
   const { clients } = useClients();
-  const { notices } = useIRSNotices();
   const { vendors } = useVendors();
   const [chatContext, setChatContext] = useState<ChatContext>({ mode: 'general' });
   const { isSearchOpen, closeSearch } = useSearch();
@@ -442,33 +440,6 @@ export function AITaxAssistant() {
                       </div>
 
                       {/* Notice Mode */}
-                      {notices.length > 0 && (
-                        <div className="mt-2">
-                          <div className="px-3 py-1 text-xs font-semibold text-text-tertiary uppercase tracking-wider">
-                            IRS Notices
-                          </div>
-                          {notices.slice(0, 3).map(notice => (
-                            <button
-                              key={notice.id}
-                              onClick={() => handleModeChange('notice', notice.id)}
-                              className={cn(
-                                "w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors duration-200",
-                                chatContext.mode === 'notice' && chatContext.noticeId === notice.id
-                                  ? "bg-primary/10 text-primary" 
-                                  : "hover:bg-surface-hover text-text-primary"
-                              )}
-                            >
-                              <AlertTriangle className="w-4 h-4" />
-                              <div>
-                                <div className="font-medium">{notice.notice_type}</div>
-                                <div className="text-xs text-text-tertiary">
-                                  {notice.notice_number || 'No number'} • {notice.priority} priority
-                                </div>
-                              </div>
-                            </button>
-                          ))}
-                        </div>
-                      )}
 
                       {/* Vendor Mode */}
                       {vendors.length > 0 && (

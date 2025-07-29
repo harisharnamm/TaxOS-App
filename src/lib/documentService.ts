@@ -29,6 +29,25 @@ export class DocumentService {
     onProgress?: (progress: UploadProgress) => void
   ): Promise<{ data: Document | null; error: any }> {
     try {
+      console.log('📤 DocumentService.uploadDocument called with:', {
+        fileName: file.name,
+        userId,
+        clientId: options.clientId,
+        documentType: options.documentType
+      });
+      
+      // Validate that clientId is provided
+      if (!options.clientId) {
+        const error = new Error('Client ID is required for document upload');
+        onProgress?.({
+          file,
+          progress: 0,
+          status: 'error',
+          error: error.message,
+        });
+        return { data: null, error };
+      }
+
       // Validate file
       const validation = validateFile(file);
       if (!validation.isValid) {
@@ -41,6 +60,13 @@ export class DocumentService {
         });
         return { data: null, error };
       }
+
+      console.log('✅ File validation passed');
+      console.log('📤 Starting upload with options:', {
+        clientId: options.clientId,
+        documentType: options.documentType,
+        tags: options.tags
+      });
 
       // Update progress - starting
       onProgress?.({
@@ -109,6 +135,7 @@ export class DocumentService {
       if (dbError) {
         // Cleanup uploaded file if database insert fails
         await this.deleteFileFromStorage(bucketName, storagePath);
+        console.error('❌ Database insert failed:', dbError);
         onProgress?.({
           file,
           progress: 0,
@@ -117,6 +144,12 @@ export class DocumentService {
         });
         return { data: null, error: dbError };
       }
+
+      console.log('✅ Document record created:', {
+        id: documentData?.id,
+        clientId: documentData?.client_id,
+        filename: documentData?.original_filename
+      });
 
       onProgress?.({
         file,
@@ -127,11 +160,14 @@ export class DocumentService {
 
       // Start background processing if enabled
       if (options.processingOptions?.enableOCR || options.processingOptions?.enableAI) {
-        this.processDocumentBackground(documentData!.id, userId, options.processingOptions);
+        console.log('🤖 Starting background processing for document:', documentData!.id);
+        this.initiateDocumentProcessing(documentData!.id, userId, options.processingOptions);
+      } else {
+        console.log('⏭️ Skipping background processing (not enabled)');
       }
 
-      // Note: IRS notice records are now created only by the IRSNotices page
-      // to avoid duplication. This ensures a single, controlled creation pathway.
+      // Note: Document classification and specific processing is now handled
+      // through the new 3-step workflow with user approval
 
       onProgress?.({
         file,
@@ -169,6 +205,12 @@ export class DocumentService {
       status: 'pending',
     }));
 
+    console.log('📤 Uploading multiple documents:', {
+      fileCount: files.length,
+      clientId: options.clientId,
+      documentType: options.documentType
+    });
+
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       
@@ -184,6 +226,9 @@ export class DocumentService {
 
       results.push(result);
     }
+
+    const successCount = results.filter(r => r.data && !r.error).length;
+    console.log(`✅ Upload batch complete: ${successCount}/${files.length} successful`);
 
     return { results };
   }
@@ -337,7 +382,7 @@ export class DocumentService {
   /**
    * Processes document in background (OCR, AI analysis)
    */
-  private async processDocumentBackground(
+  private async initiateDocumentProcessing(
     documentId: string,
     userId: string,
     options: {
@@ -347,19 +392,23 @@ export class DocumentService {
     }
   ): Promise<void> {
     try {
-      console.log('🤖 Starting AI processing for document:', documentId);
+      console.log('🤖 Starting initial document processing (OCR + Classification) for document:', documentId);
       console.log('🤖 User ID:', userId);
-      console.log('🤖 Supabase URL:', import.meta.env.VITE_SUPABASE_URL);
-      console.log('🤖 Has Anon Key:', !!import.meta.env.VITE_SUPABASE_ANON_KEY);
       
-      // Call the edge function for AI processing
+      // Get current user session for authentication
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('No valid session for document processing');
+      }
+
+      // Call the edge function for initial processing (OCR + Classification)
       const functionUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/process-document-ai`;
       console.log('🤖 Calling edge function:', functionUrl);
       
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/process-document-ai`, {
+      const response = await fetch(functionUrl, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -368,61 +417,95 @@ export class DocumentService {
         }),
       });
 
-      console.log('🤖 Edge function response status:', response.status);
-      console.log('🤖 Edge function response ok:', response.ok);
+      console.log('🤖 Initial processing response status:', response.status);
       
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('❌ Edge function error response:', errorText);
-        throw new Error(`AI processing failed: ${response.statusText}`);
+        console.error('❌ Initial processing error response:', errorText);
+        throw new Error(`Document processing failed: ${response.statusText}`);
       }
 
       const result = await response.json();
-      console.log('🤖 Edge function result:', result);
+      console.log('🤖 Initial processing result:', result);
       
-      if (result.success && result.analysis) {
-        // Update document with AI analysis
-        const updates: any = {
-          ai_summary: result.analysis.summary,
-          is_processed: true,
-        };
-
-        if (options.enableOCR) {
-          // Call OCR extraction if needed
-          const ocrResponse = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/extract-document-text`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              documentId,
-            }),
-          });
-
-          if (ocrResponse.ok) {
-            const ocrResult = await ocrResponse.json();
-            if (ocrResult.success) {
-              updates.ocr_text = ocrResult.extractedText;
-            }
-          }
-        }
-
-        await updateDocumentProcessing(documentId, updates);
-        console.log('✅ AI processing completed successfully');
+      if (result.success) {
+        console.log('✅ Initial processing (OCR + Classification) completed successfully');
+        console.log('📋 Document classification:', result.classification);
+        
+        // The document now has OCR text and classification
+        // Frontend will handle user approval and trigger Step 3 processing
       } else {
-        console.error('❌ AI processing returned no results:', result);
-        throw new Error('AI processing returned no results');
+        console.error('❌ Initial processing returned no results:', result);
+        throw new Error('Document processing returned no results');
       }
 
     } catch (error) {
-      console.error('❌ AI processing failed:', error);
+      console.error('❌ Document processing failed:', error);
       
-      // Mark as processed even if AI fails, so it doesn't get stuck
+      // Mark as processed even if processing fails, so it doesn't get stuck
       await updateDocumentProcessing(documentId, {
         is_processed: true,
-        ai_summary: 'AI processing failed. Please review document manually.',
+        ai_summary: 'Document processing failed. Please review document manually.',
       });
+    }
+  }
+
+  /**
+   * Triggers Step 3 processing based on classification
+   */
+  async processDocumentByType(
+    documentId: string,
+    classificationType: 'Financial' | 'Identity' | 'Tax'
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('No valid session for document processing');
+      }
+
+      let functionName = '';
+      switch (classificationType.toLowerCase()) {
+        case 'financial':
+          functionName = 'process-financial';
+          break;
+        case 'identity':
+          functionName = 'process-identity';
+          break;
+        case 'tax':
+          functionName = 'process-tax';
+          break;
+        default:
+          throw new Error(`Unknown classification type: ${classificationType}`);
+      }
+
+      const functionUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/${functionName}`;
+      console.log(`🤖 Calling ${classificationType} processing function:`, functionUrl);
+      
+      const response = await fetch(functionUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          document_id: documentId,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`❌ ${classificationType} processing error:`, errorText);
+        throw new Error(`${classificationType} processing failed: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      console.log(`✅ ${classificationType} processing completed:`, result);
+      
+      return { success: true };
+
+    } catch (error: any) {
+      console.error(`❌ ${classificationType} processing failed:`, error);
+      return { success: false, error: error.message };
     }
   }
 

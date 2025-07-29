@@ -373,6 +373,11 @@ export const DocumentList: React.FC<DocumentListProps> = ({
             className="px-3 py-2 border border-border-subtle rounded-lg bg-surface-elevated text-text-primary focus:ring-2 focus:ring-primary focus:border-transparent"
           >
             <option value="all">All Types</option>
+        {documents.filter(d => d.client_id).length > 0 && (
+          <span className="ml-2">
+            • {documents.filter(d => d.client_id).length} associated with clients
+          </span>
+        )}
             {Object.entries(DOCUMENT_TYPE_LABELS).map(([key, label]) => (
               <option key={key} value={key}>
                 {label}

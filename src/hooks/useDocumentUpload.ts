@@ -14,6 +14,7 @@ export function useDocumentUpload() {
 
   const uploadSingleDocument = useCallback(async (
     file: File,
+    clientId?: string,
     options: DocumentUploadOptions = {}
   ): Promise<{ data: Document | null; error: any }> => {
     if (!user) {
@@ -22,10 +23,16 @@ export function useDocumentUpload() {
 
     setIsUploading(true);
 
+    // Merge clientId into options
+    const finalOptions = {
+      ...options,
+      clientId: clientId || options.clientId
+    };
+
     const result = await documentService.uploadDocument(
       file,
       user.id,
-      options,
+      finalOptions,
       (progress) => {
         setUploads(prev => {
           const existingIndex = prev.findIndex(p => p.file.name === file.name);
@@ -46,6 +53,7 @@ export function useDocumentUpload() {
 
   const uploadMultipleDocuments = useCallback(async (
     files: File[],
+    clientId?: string,
     options: DocumentUploadOptions = {}
   ): Promise<{ results: Array<{ data: Document | null; error: any }> }> => {
     if (!user) {
@@ -59,10 +67,16 @@ export function useDocumentUpload() {
 
     setIsUploading(true);
 
+    // Merge clientId into options
+    const finalOptions = {
+      ...options,
+      clientId: clientId || options.clientId
+    };
+
     const result = await documentService.uploadMultipleDocuments(
       files,
       user.id,
-      options,
+      finalOptions,
       (progressArray) => {
         setUploads(progressArray);
       }

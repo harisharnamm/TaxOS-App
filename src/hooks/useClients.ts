@@ -64,6 +64,7 @@ export function useClients() {
     email: string;
     phone?: string;
     address?: string;
+    category?: string;
     taxYear: number;
     entityType: string;
     requiredDocuments: string[];
@@ -77,6 +78,7 @@ export function useClients() {
         email: clientData.email,
         phone: clientData.phone,
         address: clientData.address,
+        category: clientData.category,
         entity_type: clientData.entityType as Client['entity_type'],
         required_documents: clientData.requiredDocuments,
         tax_year: clientData.taxYear,

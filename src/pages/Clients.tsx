@@ -54,6 +54,7 @@ export function Clients() {
     email: string;
     phone?: string;
     address?: string;
+    category: string;
     address?: string;
     taxYear: number;
     entityType: string;
@@ -68,6 +69,7 @@ export function Clients() {
         email: clientData.email,
         phone: clientData.phone,
         address: clientData.address,
+        category: clientData.category,
         taxYear: clientData.taxYear,
         entityType: clientData.entityType,
         requiredDocuments: clientData.requiredDocuments

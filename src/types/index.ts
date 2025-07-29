@@ -3,9 +3,11 @@ export type {
   Client,
   Document,
   Vendor,
-  IRSNotice as Notice,
   ChatMessage,
   Task,
   AIInsight,
-  PaymentTransaction
+  PaymentTransaction,
+  DocumentRequest,
+  DocumentRequestItem,
+  EmailCommunication
 } from '../lib/database';

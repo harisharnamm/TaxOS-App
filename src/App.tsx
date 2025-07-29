@@ -14,12 +14,15 @@ import { ClientDetail } from './pages/ClientDetail';
 import { Tasks } from './pages/Tasks';
 import { Hub1099 } from './pages/Hub1099';
 import { MyZone } from './pages/MyZone';
-import { IRSNotices } from './pages/IRSNotices';
+import { DocumentManagement } from './pages/DocumentManagement';
 import { AITaxAssistant } from './pages/AITaxAssistant';
 import { Settings } from './pages/SettingsPage';
 import { ClientCommunications } from './pages/ClientCommunications';
+import ClientUpload from './pages/ClientUpload';
 import { SignIn } from './pages/SignIn';
 import { SignUp } from './pages/SignUp';
+import { ForgotPassword } from './pages/ForgotPassword';
+import { ResetPassword } from './pages/ResetPassword';
 
 function AppContent() {
   const location = useLocation();
@@ -40,6 +43,11 @@ function AppContent() {
       {/* Authentication routes - full width without sidebar */}
       <Route path="/signin" element={<SignIn />} />
       <Route path="/signup" element={<SignUp />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
+      
+      {/* Client upload route - public access */}
+      <Route path="/upload/:token" element={<ClientUpload />} />
       
       {/* Main app routes - with sidebar */}
       <Route path="/" element={
@@ -70,13 +78,6 @@ function AppContent() {
           </AppLayout>
         </ProtectedRoute>
       } />
-      <Route path="/1099-hub" element={
-        <ProtectedRoute>
-          <AppLayout>
-            <Hub1099 />
-          </AppLayout>
-        </ProtectedRoute>
-      } />
       <Route path="/my-zone" element={
         <ProtectedRoute>
           <AppLayout>
@@ -87,7 +88,7 @@ function AppContent() {
       <Route path="/irs-notices" element={
         <ProtectedRoute>
           <AppLayout>
-            <IRSNotices />
+            <DocumentManagement />
           </AppLayout>
         </ProtectedRoute>
       } />

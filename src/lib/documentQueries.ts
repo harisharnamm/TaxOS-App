@@ -6,7 +6,7 @@ import { Document, DocumentFilter, DocumentType, IRSNotice, EnrichedIRSNotice } 
  */
 export async function createDocumentRecord(documentData: {
   user_id: string;
-  client_id?: string;
+  client_id: string; // Remove the optional '?' to make it required
   filename: string;
   original_filename: string;
   file_size: number;

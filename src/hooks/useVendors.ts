@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { vendorsApi, Vendor } from '../lib/database';
 import { useAuthContext } from '../contexts/AuthContext';
 
@@ -8,7 +8,9 @@ export function useVendors() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchVendors = async () => {
+  const fetchVendors = useCallback(async () => {
+    if (!user) return;
+
     try {
       setLoading(true);
       setError(null);
@@ -16,18 +18,17 @@ export function useVendors() {
       console.log('🔄 Vendors: Starting data fetch...');
       console.log('🔄 Vendors: User authenticated:', user?.email);
       
-      const data = await vendorsApi.getAll();
+      const vendorsData = await vendorsApi.getAll();
       
-      console.log('✅ Vendors: Found', data?.length, 'vendors', data);
-      
-      setVendors(data);
+      console.log('✅ Vendors: Found', vendorsData?.length, 'vendors');
+      setVendors(vendorsData || []);
     } catch (err) {
       console.error('❌ Vendors: Error fetching data:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch vendors');
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
 
   useEffect(() => {
     // Only fetch data when authentication is complete and user exists
@@ -39,9 +40,9 @@ export function useVendors() {
       setError('Please sign in to view vendors data');
       setLoading(false);
     } else {
-      console.log('⏳ Vendors: Waiting for authentication...', { authLoading, hasUser: !!user });
+      console.log('⏳ Vendors: Waiting for authentication...');
     }
-  }, [authLoading, user]);
+  }, [authLoading, user?.id, fetchVendors]);
 
   const addVendor = async (vendorData: Omit<Vendor, 'id' | 'user_id' | 'created_at' | 'updated_at'>) => {
     try {

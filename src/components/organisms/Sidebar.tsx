@@ -69,7 +69,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
               <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-gray-900" />
             </div>
             <div>
-              <span className="text-lg sm:text-xl font-semibold text-text-primary tracking-tight">CPA OS</span>
+              <span className="text-lg sm:text-xl font-semibold text-text-primary tracking-tight">TaxOS</span>
               <p className="text-xs text-text-tertiary font-medium">by Nurahex</p>
             </div>
           </div>
@@ -89,11 +89,8 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
           <NavigationItem to="/my-zone" icon={GraduationCap}>
             My Zone
           </NavigationItem>
-          <NavigationItem to="/1099-hub" icon={FileText}>
-            1099 Hub
-          </NavigationItem>
-          <NavigationItem to="/irs-notices" icon={AlertTriangle}>
-            IRS Notices
+          <NavigationItem to="/irs-notices" icon={FileText}>
+            Document Management
           </NavigationItem>
           <NavigationItem to="/client-communications" icon={MessageSquareIcon}>
             Client Communications

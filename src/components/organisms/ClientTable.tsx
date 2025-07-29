@@ -94,6 +94,9 @@ export function ClientTable({
                 <Badge variant="neutral" size="sm">
                   {client.tax_year}
                 </Badge>
+                <Badge variant="neutral" size="sm" className="capitalize">
+                  {client.category ? client.category.replace('_', ' ') : 'Other'}
+                </Badge>
                 <div className="flex items-center space-x-1">
                   <span className="text-sm font-semibold text-text-primary">{client.documentsCount}</span>
                   <span className="text-xs text-text-tertiary">files</span>
@@ -121,6 +124,9 @@ export function ClientTable({
                 </th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-text-tertiary uppercase tracking-wider">
                   Contact Information
+                </th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-text-tertiary uppercase tracking-wider">
+                  Category
                 </th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-text-tertiary uppercase tracking-wider">
                   Tax Year
@@ -163,6 +169,11 @@ export function ClientTable({
                         </div>
                       )}
                     </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <Badge variant="neutral" size="sm" className="capitalize">
+                      {client.category ? client.category.replace('_', ' ') : 'Other'}
+                    </Badge>
                   </td>
                   <td className="px-6 py-4">
                     <Badge variant="neutral" size="sm">
