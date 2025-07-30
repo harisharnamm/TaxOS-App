@@ -5,7 +5,7 @@ import { GlobalSearch } from '../components/molecules/GlobalSearch';
 import { useSearch } from '../contexts/SearchContext';
 import { Button } from '../components/atoms/Button';
 import { Badge } from '../components/atoms/Badge';
-import { Send, Sparkles, FileText, Calculator, Trash2, RefreshCw, Paperclip, X, Users, AlertTriangle, User, ChevronDown } from 'lucide-react';
+import { Send, Sparkles, FileText, Calculator, Trash2, RefreshCw, Paperclip, X, Users2, AlertTriangle, User, ChevronDown } from 'lucide-react';
 import { useChat } from '../hooks/useChat';
 import { useClients } from '../hooks/useClients';
 import { useVendors } from '../hooks/useVendors';
@@ -14,12 +14,11 @@ import { useDocumentUpload } from '../hooks/useDocumentUpload';
 import { formatFileSize } from '../lib/uploadUtils';
 import { cn } from '../lib/utils';
 
-type ChatMode = 'general' | 'client' | 'notice' | 'vendor';
+type ChatMode = 'general' | 'client' | 'vendor';
 
 interface ChatContext {
   mode: ChatMode;
   clientId?: string;
-  noticeId?: string;
   vendorId?: string;
   documentIds?: string[];
 }
@@ -82,8 +81,7 @@ export function AITaxAssistant() {
       case 'client':
         const clientName = clients.find(c => c.id === chatContext.clientId)?.name || 'this client';
         return `Hello! I'm your AI tax assistant, now focused on ${clientName}. I can help you with client-specific tax questions, analyze their documents, and provide tailored advice. What would you like to know about this client?`;
-      case 'notice':
-        return `Hello! I'm your AI tax assistant, now focused on the selected IRS notice. I can help you understand the notice requirements, suggest response strategies, and guide you through the resolution process. What would you like to know about this notice?`;
+
       case 'vendor':
         return `Hello! I'm your AI tax assistant, now focused on the selected vendor. I can help you with 1099 requirements, vendor compliance, and payment tracking. What would you like to know about this vendor?`;
       default:
@@ -124,12 +122,7 @@ export function AITaxAssistant() {
           deduction: `Help me calculate a deduction for ${clientName}. What information do you need?`,
           guidance: `I have a tax question specific to ${clientName}. Can you provide guidance?`
         }[type] || basePrompts[type as keyof typeof basePrompts];
-      case 'notice':
-        return {
-          document: 'Can you analyze this IRS notice and explain what actions are required?',
-          deduction: 'Help me understand the deduction issues mentioned in this IRS notice.',
-          guidance: 'What are the best strategies for responding to this IRS notice?'
-        }[type] || basePrompts[type as keyof typeof basePrompts];
+
       case 'vendor':
         return {
           document: 'Can you help me analyze vendor documentation for 1099 compliance?',
@@ -146,9 +139,7 @@ export function AITaxAssistant() {
       case 'client':
         const clientName = clients.find(c => c.id === chatContext.clientId)?.name;
         return clientName ? `Client: ${clientName}` : 'Select Client';
-      case 'notice':
-        const notice = notices.find(n => n.id === chatContext.noticeId);
-        return notice ? `Notice: ${notice.notice_type}` : 'Select Notice';
+
       case 'vendor':
         const vendor = vendors.find(v => v.id === chatContext.vendorId);
         return vendor ? `Vendor: ${vendor.name}` : 'Select Vendor';
@@ -160,9 +151,8 @@ export function AITaxAssistant() {
   const getModeIcon = () => {
     switch (chatContext.mode) {
       case 'client':
-        return <Users className="w-4 h-4" />;
-      case 'notice':
-        return <AlertTriangle className="w-4 h-4" />;
+        return <Users2 className="w-4 h-4" />;
+
       case 'vendor':
         return <User className="w-4 h-4" />;
       default:
@@ -176,9 +166,6 @@ export function AITaxAssistant() {
     switch (mode) {
       case 'client':
         newContext.clientId = id;
-        break;
-      case 'notice':
-        newContext.noticeId = id;
         break;
       case 'vendor':
         newContext.vendorId = id;
@@ -225,8 +212,7 @@ export function AITaxAssistant() {
 
     try {
       for (const file of uploadedFiles) {
-        const result = await uploadSingleDocument(file, {
-          clientId: chatContext.clientId,
+        const result = await uploadSingleDocument(file, chatContext.clientId, {
           documentType: 'other',
           tags: ['ai-chat-upload'],
           processingOptions: {
@@ -283,12 +269,7 @@ export function AITaxAssistant() {
               contextInfo = `\n\nContext: This question is about client "${client.name}" (${client.entity_type}, Tax Year ${client.tax_year}).`;
             }
             break;
-          case 'notice':
-            const notice = notices.find(n => n.id === chatContext.noticeId);
-            if (notice) {
-              contextInfo = `\n\nContext: This question is about IRS Notice "${notice.notice_type}"${notice.notice_number ? ` - ${notice.notice_number}` : ''}.`;
-            }
-            break;
+
           case 'vendor':
             const vendor = vendors.find(v => v.id === chatContext.vendorId);
             if (vendor) {
@@ -430,7 +411,7 @@ export function AITaxAssistant() {
                                 : "hover:bg-surface-hover text-text-primary"
                             )}
                           >
-                            <Users className="w-4 h-4" />
+                            <Users2 className="w-4 h-4" />
                             <div>
                               <div className="font-medium">{client.name}</div>
                               <div className="text-xs text-text-tertiary">{client.entity_type} • {client.tax_year}</div>

@@ -3,7 +3,7 @@ import { useSidebar } from '../../contexts/SidebarContext';
 import { NavigationItem } from '../molecules/NavigationItem';
 import { 
   LayoutDashboard, 
-  Users,
+  Users2,
   MessageSquare as MessageSquareIcon,
   GraduationCap,
   FileText, 
@@ -80,7 +80,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
           <NavigationItem to="/" icon={LayoutDashboard}>
             Dashboard
           </NavigationItem>
-          <NavigationItem to="/clients" icon={Users}>
+          <NavigationItem to="/clients" icon={Users2}>
             Clients
           </NavigationItem>
           <NavigationItem to="/tasks" icon={CheckSquare}>

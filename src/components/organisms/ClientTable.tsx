@@ -1,4 +1,4 @@
-import { MoreHorizontal, Mail, Phone, Users, Edit, Trash2, FileText, Send, Eye } from 'lucide-react';
+import { MoreHorizontal, Mail, Phone, Users2, Edit, Trash2, FileText, Send, Eye } from 'lucide-react';
 import { ClientWithDocuments } from '../../hooks/useClients';
 import { Button } from '../atoms/Button';
 import { Badge } from '../atoms/Badge';
@@ -25,7 +25,7 @@ export function ClientTable({
       <div className="bg-surface-elevated rounded-2xl border border-border-subtle p-8 sm:p-12 shadow-soft">
         <div className="text-center">
           <div className="p-3 sm:p-4 bg-gradient-to-br from-blue-100 to-blue-50 rounded-2xl w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-3 sm:mb-4 flex items-center justify-center">
-            <Users className="w-6 h-6 sm:w-8 sm:h-8 text-blue-600" />
+            <Users2 className="w-6 h-6 sm:w-8 sm:h-8 text-blue-600" />
           </div>
           <h3 className="text-base sm:text-lg font-semibold text-text-primary mb-2">No clients found</h3>
           <p className="text-text-tertiary text-sm sm:text-base">Try adjusting your search or add your first client to get started.</p>
