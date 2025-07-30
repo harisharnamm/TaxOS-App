@@ -163,8 +163,8 @@ const validateForm = () => {
 #### Exposed API Credentials
 ```typescript
 // CRITICAL: API keys exposed in conversation history
-RESEND_API_KEY: re_a32T4jBU_Ev29R6w1bfu44e4D5Wod9XDA
-RESEND_WEBHOOK_SECRET: whsec_2QiMWXgSQNzyeQCp2lt2nj5bQqS3qmlA
+RESEND_API_KEY: ********************
+RESEND_WEBHOOK_SECRET: ***************
 ```
 
 **Risk Level:** 🔴 **HIGH**
