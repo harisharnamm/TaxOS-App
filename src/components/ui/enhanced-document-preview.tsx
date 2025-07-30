@@ -438,29 +438,29 @@ const EnhancedPreviewContent: React.FC<{
               <span>PDF loaded</span>
             </div>
           )}
-          <iframe
-            ref={iframeRef}
-            src={pdfUrl}
-            className="w-full h-full min-h-[400px] bg-white"
-            style={{ 
+        <iframe
+          ref={iframeRef}
+          src={pdfUrl}
+          className="w-full h-full min-h-[400px] bg-white"
+           style={{ 
               transform: `scale(${zoom / 100})`, 
               transformOrigin: 'top left',
               border: 'none'
             }}
-            onLoad={() => {
-              console.log('📄 Iframe onLoad event fired');
-              handleLoad();
-            }}
-            onError={(e) => {
-              console.error('📄 Iframe onError event fired:', e);
-              handleError(e);
-            }}
-            title={`Preview of ${document.original_filename}`}
-            sandbox="allow-same-origin allow-scripts allow-forms allow-downloads allow-popups"
-            loading="eager"
-            referrerPolicy="same-origin"
-            allow="fullscreen"
-          />
+          onLoad={() => {
+          console.log('📄 Iframe onLoad event fired');
+          handleLoad();
+          }}
+          onError={(e) => {
+            console.error('📄 Iframe onError event fired:', e);
+            handleError(e);
+          }}
+         title={`Preview of ${document.original_filename}`}
+         {...(isPDF ? {} : { sandbox: "allow-same-origin allow-scripts allow-forms allow-downloads allow-popups" })}
+         loading="eager"
+         referrerPolicy="same-origin"
+           allow="fullscreen"
+        />  
         </div>
         
         <div className="mt-2 text-center">
