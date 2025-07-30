@@ -4,7 +4,7 @@ import {
   Search, 
   X, 
   Clock, 
-  Users, 
+  Users2, 
   FileText, 
   CheckSquare, 
   AlertTriangle, 
@@ -121,7 +121,7 @@ export function GlobalSearch({ isOpen, onClose }: GlobalSearchProps) {
   const getIconForType = (type: SearchResultType) => {
     switch (type) {
       case 'client':
-        return <Users className="w-4 h-4 text-blue-600" />;
+        return <Users2 className="w-4 h-4 text-blue-600" />;
       case 'document':
         return <FileText className="w-4 h-4 text-emerald-600" />;
       case 'task':

@@ -12,7 +12,7 @@ import { useToast } from '../contexts/ToastContext';
 import { Skeleton, SkeletonText, SkeletonTable } from '../components/ui/skeleton';
 import { Input } from '../components/atoms/Input';
 import { Button } from '../components/atoms/Button';
-import { Search, Filter, Users as UsersIcon, Plus, Mail } from 'lucide-react';
+import { Search, Filter, Users2 as UsersIcon, Plus, Mail } from 'lucide-react';
 import { ClientWithDocuments } from '../hooks/useClients';
 
 export function Clients() {
@@ -235,7 +235,7 @@ export function Clients() {
             />
           ) : (
             <EmptyState
-              icon={Users}
+              icon={UsersIcon}
               title={searchQuery ? "No clients match your search" : "No clients yet"}
               description={searchQuery 
                 ? "Try adjusting your search term or clear filters to see all clients" 

@@ -5,7 +5,7 @@ import { GlobalSearch } from '../components/molecules/GlobalSearch';
 import { useSearch } from '../contexts/SearchContext';
 import { Button } from '../components/atoms/Button';
 import { Badge } from '../components/atoms/Badge';
-import { Send, Sparkles, FileText, Calculator, Trash2, RefreshCw, Paperclip, X, Users, AlertTriangle, User, ChevronDown } from 'lucide-react';
+import { Send, Sparkles, FileText, Calculator, Trash2, RefreshCw, Paperclip, X, Users2, AlertTriangle, User, ChevronDown } from 'lucide-react';
 import { useChat } from '../hooks/useChat';
 import { useClients } from '../hooks/useClients';
 import { useVendors } from '../hooks/useVendors';
@@ -160,7 +160,7 @@ export function AITaxAssistant() {
   const getModeIcon = () => {
     switch (chatContext.mode) {
       case 'client':
-        return <Users className="w-4 h-4" />;
+        return <Users2 className="w-4 h-4" />;
       case 'notice':
         return <AlertTriangle className="w-4 h-4" />;
       case 'vendor':
@@ -430,7 +430,7 @@ export function AITaxAssistant() {
                                 : "hover:bg-surface-hover text-text-primary"
                             )}
                           >
-                            <Users className="w-4 h-4" />
+                            <Users2 className="w-4 h-4" />
                             <div>
                               <div className="font-medium">{client.name}</div>
                               <div className="text-xs text-text-tertiary">{client.entity_type} • {client.tax_year}</div>

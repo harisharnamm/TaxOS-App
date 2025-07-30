@@ -16,7 +16,7 @@ import { Input } from '../components/atoms/Input';
 import { Button } from '../components/atoms/Button';
 import { Badge } from '../components/atoms/Badge';
 import { 
-  Users, 
+  Users2, 
   FileText, 
   AlertTriangle, 
   Calendar, 
@@ -159,7 +159,7 @@ export function Dashboard() {
       title: 'Active Clients',
       value: stats.activeClients,
       change: '+2 this month',
-      icon: Users,
+      icon: Users2,
       trend: 'up' as const,
       tooltip: 'Clients with active engagements',
     },
@@ -230,7 +230,7 @@ export function Dashboard() {
       event: 'New client onboarding completed: StartupXYZ',
       time: '2 days ago',
       type: 'update',
-      icon: Users,
+      icon: Users2,
       color: 'text-indigo-600 bg-indigo-50'
     },
   ];
@@ -601,7 +601,7 @@ export function Dashboard() {
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
-                    <Users className="w-4 h-4 text-text-tertiary" />
+                    <Users2 className="w-4 h-4 text-text-tertiary" />
                     <span className="text-sm text-text-secondary">Total Clients</span>
                   </div>
                   <span className="font-semibold text-text-primary">{stats.totalClients}</span>
