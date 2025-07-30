@@ -29,7 +29,7 @@ import {
   Download, 
   Trash2,
   MessageSquare,
-  User
+  Users
 } from 'lucide-react';
 
 // Document request interface matching our database schema
@@ -88,33 +88,33 @@ export function ClientCommunications() {
   const [documentRequests, setDocumentRequests] = useState<DocumentRequest[]>([]);
 
   // Load document requests from database
-  useEffect(() => {
-    const loadDocumentRequests = async () => {
+  const loadDocumentRequests = async () => {
+    try {
+      setIsLoading(true);
+      console.log('Loading document requests...');
+      
+      // First, mark any overdue requests
       try {
-        setIsLoading(true);
-        console.log('Loading document requests...');
-        
-        // First, mark any overdue requests
-        try {
-          await supabase.rpc('mark_overdue_requests');
-          console.log('Marked overdue requests');
-        } catch (overdueError) {
-          console.warn('Could not mark overdue requests:', overdueError);
-        }
-        
-        console.log('documentRequestsApi:', documentRequestsApi);
-        const requests = await documentRequestsApi.getAll();
-        console.log('Loaded document requests:', requests);
-        setDocumentRequests(requests);
-      } catch (error) {
-        console.error('Failed to load document requests:', error);
-        console.error('Error details:', error);
-        toast.error('Error', 'Failed to load document requests');
-      } finally {
-        setIsLoading(false);
+        await supabase.rpc('mark_overdue_requests');
+        console.log('Marked overdue requests');
+      } catch (overdueError) {
+        console.warn('Could not mark overdue requests:', overdueError);
       }
-    };
+      
+      console.log('documentRequestsApi:', documentRequestsApi);
+      const requests = await documentRequestsApi.getAll();
+      console.log('Loaded document requests:', requests);
+      setDocumentRequests(requests);
+    } catch (error) {
+      console.error('Failed to load document requests:', error);
+      console.error('Error details:', error);
+      toast.error('Error', 'Failed to load document requests');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
+  useEffect(() => {
     loadDocumentRequests();
   }, [toast]);
 
@@ -297,7 +297,7 @@ export function ClientCommunications() {
           created_at,
           document_requests!inner(
             title,
-            clients!inner(name)
+            clients(name)
           )
         `)
         .eq('user_id', (await supabase.auth.getUser()).data.user?.id)
@@ -312,7 +312,7 @@ export function ClientCommunications() {
           document_name,
           document_requests!inner(
             title,
-            clients!inner(name)
+            clients(name)
           )
         `)
         .eq('status', 'uploaded')
@@ -327,7 +327,7 @@ export function ClientCommunications() {
           title,
           description,
           created_at,
-          clients!inner(name)
+          clients(name)
         `)
         .eq('user_id', (await supabase.auth.getUser()).data.user?.id)
         .order('created_at', { ascending: false });
@@ -338,7 +338,7 @@ export function ClientCommunications() {
           ...comm,
           type: 'email',
           displayType: comm.type === 'initial' ? 'Document Request Sent' : 'Reminder Sent',
-          description: `${comm.type === 'initial' ? 'Sent' : 'Sent reminder for'} ${comm.document_requests?.title} to ${comm.document_requests?.clients?.name}`,
+          description: `${comm.type === 'initial' ? 'Sent' : 'Sent reminder for'} ${comm.document_requests?.[0]?.title} to ${comm.document_requests?.[0]?.clients?.[0]?.name || 'Unknown Client'}`,
           icon: 'Mail',
           iconColor: 'blue'
         })),
@@ -346,7 +346,7 @@ export function ClientCommunications() {
           ...upload,
           type: 'upload',
           displayType: 'Documents Received',
-          description: `${upload.document_requests?.clients?.name} uploaded ${upload.document_name}`,
+          description: `${upload.document_requests?.[0]?.clients?.[0]?.name || 'Unknown Client'} uploaded ${upload.document_name}`,
           icon: 'FileText',
           iconColor: 'emerald',
           created_at: upload.uploaded_at
@@ -355,7 +355,7 @@ export function ClientCommunications() {
           ...query,
           type: 'query',
           displayType: 'Client Query',
-          description: `${query.clients?.name}: ${query.title}`,
+          description: `${query.clients?.[0]?.name || 'Unknown Client'}: ${query.title}`,
           icon: 'MessageSquare',
           iconColor: 'amber'
         }))
@@ -404,7 +404,7 @@ export function ClientCommunications() {
           created_at,
           document_requests!inner(
             title,
-            clients!inner(name)
+            clients(name)
           )
         `)
         .eq('user_id', (await supabase.auth.getUser()).data.user?.id)
@@ -420,7 +420,7 @@ export function ClientCommunications() {
           document_name,
           document_requests!inner(
             title,
-            clients!inner(name)
+            clients(name)
           )
         `)
         .eq('status', 'uploaded')
@@ -436,7 +436,7 @@ export function ClientCommunications() {
           title,
           description,
           created_at,
-          clients!inner(name)
+          clients(name)
         `)
         .eq('user_id', (await supabase.auth.getUser()).data.user?.id)
         .order('created_at', { ascending: false })
@@ -448,7 +448,7 @@ export function ClientCommunications() {
           ...comm,
           type: 'email',
           displayType: comm.type === 'initial' ? 'Document Request Sent' : 'Reminder Sent',
-          description: `${comm.type === 'initial' ? 'Sent' : 'Sent reminder for'} ${comm.document_requests?.title} to ${comm.document_requests?.clients?.name}`,
+          description: `${comm.type === 'initial' ? 'Sent' : 'Sent reminder for'} ${comm.document_requests?.[0]?.title} to ${comm.document_requests?.[0]?.clients?.[0]?.name || 'Unknown Client'}`,
           icon: 'Mail',
           iconColor: 'blue'
         })),
@@ -456,7 +456,7 @@ export function ClientCommunications() {
           ...upload,
           type: 'upload',
           displayType: 'Documents Received',
-          description: `${upload.document_requests?.clients?.name} uploaded ${upload.document_name}`,
+          description: `${upload.document_requests?.[0]?.clients?.[0]?.name || 'Unknown Client'} uploaded ${upload.document_name}`,
           icon: 'FileText',
           iconColor: 'emerald',
           created_at: upload.uploaded_at
@@ -465,7 +465,7 @@ export function ClientCommunications() {
           ...query,
           type: 'query',
           displayType: 'Client Query',
-          description: `${query.clients?.name}: ${query.title}`,
+          description: `${query.clients?.[0]?.name || 'Unknown Client'}: ${query.title}`,
           icon: 'MessageSquare',
           iconColor: 'amber'
         }))
@@ -656,7 +656,7 @@ export function ClientCommunications() {
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-text-tertiary">
                         <span className="flex items-center">
                           <Tooltip content="Client associated with this request">
-                            <User className="w-4 h-4 mr-1" />
+                            <Users className="w-4 h-4 mr-1" />
                           </Tooltip>
                           {getClientName(request.client_id)}
                         </span>
@@ -883,12 +883,6 @@ export function ClientCommunications() {
                       </div>
                       <div className="flex-1">
                         <div className="flex items-center justify-between mb-1">
-                          <Tooltip content={
-                            comm.type === 'email' ? 'Email notification sent to client' :
-                            comm.type === 'upload' ? 'Client uploaded requested documents' :
-                            'Client sent a message with a question'
-                          }>
-                          </Tooltip>
                           <h4 className="font-medium text-text-primary">{comm.displayType}</h4>
                           <span className="text-xs text-text-tertiary">{getTimeAgo(comm.created_at)}</span>
                         </div>
@@ -923,8 +917,6 @@ export function ClientCommunications() {
                   icon={Plus}
                   onClick={() => setShowRequestDialog(true)}
                 >
-                  <Tooltip content="Create a new document request for a client">
-                  </Tooltip>
                   New Document Request
                 </Button>
                 
@@ -934,8 +926,6 @@ export function ClientCommunications() {
                   icon={Mail}
                   onClick={handleBulkReminderClick}
                 >
-                  <Tooltip content="Send reminders to all clients with pending documents">
-                  </Tooltip>
                   Send Bulk Reminders
                 </Button>
                 
@@ -945,8 +935,6 @@ export function ClientCommunications() {
                   icon={MessageSquare}
                   onClick={() => setShowClientQueryDialog(true)}
                 >
-                  <Tooltip content="Start a new conversation with a client">
-                  </Tooltip>
                   Create Client Query
                 </Button>
                 
@@ -956,8 +944,6 @@ export function ClientCommunications() {
                   icon={Download}
                   onClick={() => setShowReportDialog(true)}
                 >
-                  <Tooltip content="Generate a report of all document requests and their status">
-                  </Tooltip>
                   Download Document Report
                 </Button>
               </div>
@@ -1029,9 +1015,9 @@ export function ClientCommunications() {
                         <div className={`text-sm ${
                           request.status === 'overdue' ? 'text-red-600 font-medium' : 'text-text-secondary'
                         }`}>
-                          {formatDate(request.dueDate)}
+                          {formatDate(request.due_date)}
                           <div className="text-xs text-text-tertiary">
-                            {getDaysUntilDue(request.dueDate)}
+                            {getDaysUntilDue(request.due_date)}
                           </div>
                         </div>
                       </td>
