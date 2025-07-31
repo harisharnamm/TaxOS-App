@@ -3,6 +3,7 @@ import { AnimatePresence } from 'framer-motion';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useClients } from '../hooks/useClients';
 import { useDocuments } from '../hooks/useDocuments';
+import { Document } from '../types/documents';
 import { useClientNotes } from '../hooks/useClientNotes';
 import { useTransactions, Transaction } from '../hooks/useTransactions';
 import { TopBar } from '../components/organisms/TopBar';
@@ -333,7 +334,7 @@ export function ClientDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { clients, loading: clientsLoading, updateClient, refreshClients } = useClients();
-  const { documents, loading: documentsLoading, refreshDocuments, getDocumentPreviewURL, downloadDocument } = useDocuments(id);
+  const { documents, loading: documentsLoading, refreshDocuments, getDocumentPreviewURL, downloadDocument, deleteDocument } = useDocuments(id);
   const { notes, loading: notesLoading, createNote, updateNote, deleteNote } = useClientNotes(id || '');
   const { transactions, loading: transactionsLoading, refreshTransactions, createTransaction } = useTransactions(id);
   const { isSearchOpen, closeSearch } = useSearch();
@@ -545,6 +546,30 @@ export function ClientDetail() {
     } catch (error: any) {
       toast.error('Download Failed', error.message);
     }
+  };
+
+  const handleDeleteDocument = async (documentId: string) => {
+    const document = documents.find(d => d.id === documentId);
+    if (!document) return;
+    
+    if (window.confirm(`Are you sure you want to delete "${document.original_filename}"? This action cannot be undone.`)) {
+      try {
+        const result = await deleteDocument(documentId);
+        if (result.success) {
+          toast.success('Document Deleted', 'Document has been deleted successfully');
+        } else {
+          toast.error('Delete Failed', result.error || 'Failed to delete document');
+        }
+      } catch (error) {
+        console.error('Delete error:', error);
+        toast.error('Delete Failed', 'An unexpected error occurred');
+      }
+    }
+  };
+
+  const handleViewDocument = async (document: Document) => {
+    // Use the existing preview functionality for viewing
+    await handlePreviewDocument(document.id);
   };
 
 
@@ -858,6 +883,8 @@ export function ClientDetail() {
               loading={documentsLoading}
               onPreview={handlePreviewDocument}
               onDownload={handleDownloadDocument}
+              onDelete={handleDeleteDocument}
+              onEdit={handleViewDocument}
             />
           </div>
         )}

@@ -109,16 +109,18 @@ serve(async (req) => {
     }
 
     // --- Unified Transaction Extraction and Insertion ---
-    // Fetch client_id and secondary_classification for association
+    // Fetch client_id, user_id and secondary_classification for association
     const { data: docMeta, error: docMetaError } = await supabaseClient
       .from('documents')
-      .select('client_id, secondary_classification')
+      .select('client_id, user_id, secondary_classification')
       .eq('id', document_id)
       .single();
     if (docMetaError || !docMeta) {
       console.error('❌ Could not fetch document meta for transaction extraction:', docMetaError);
     } else if (!docMeta.client_id) {
       console.error('❌ Document missing client_id, cannot insert transactions.');
+    } else if (!docMeta.user_id) {
+      console.error('❌ Document missing user_id, cannot insert transactions.');
     } else {
       // Map human secondary_classification to internal type
       const secClass = (docMeta.secondary_classification || '').toLowerCase();
@@ -180,6 +182,7 @@ serve(async (req) => {
             transactions.push({
               transaction_id: `BS_${i + 1}_${Date.now()}`,
               document_id,
+              user_id: docMeta.user_id,
               client_id: docMeta.client_id,
               document_source: 'bank_statement',
               transaction_date: toDateString(t.date),
@@ -222,6 +225,7 @@ serve(async (req) => {
           transactions.push({
             transaction_id: `INV_${financialInfo.invoice_receipt_id || Date.now()}`,
             document_id,
+            user_id: docMeta.user_id,
             client_id: docMeta.client_id,
             document_source: 'invoice',
             transaction_date: toDateString(financialInfo.invoice_date),
@@ -263,6 +267,7 @@ serve(async (req) => {
           transactions.push({
             transaction_id: `REC_${financialInfo.invoice_receipt_id || Date.now()}`,
             document_id,
+            user_id: docMeta.user_id,
             client_id: docMeta.client_id,
             document_source: 'receipt',
             transaction_date: toDateString(financialInfo.invoice_date || financialInfo.order_date),

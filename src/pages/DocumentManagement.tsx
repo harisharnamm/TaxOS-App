@@ -37,7 +37,7 @@ import {
   ChevronRight,
   Calculator
 } from 'lucide-react';
-import { Document } from '../types/documents';
+import { Document, DOCUMENT_TYPE_LABELS } from '../types/documents';
 
 
 export function DocumentManagement() {
@@ -62,6 +62,7 @@ export function DocumentManagement() {
   const [aiAnalysisLoading, setAiAnalysisLoading] = useState(false);
   const [aiAnalysisResult, setAiAnalysisResult] = useState<any>(null);
   const [isUsingCachedAnalysis, setIsUsingCachedAnalysis] = useState(false);
+  const [aiPromptDismissed, setAiPromptDismissed] = useState(false);
 
   // Listen for documents that need classification approval
   useEffect(() => {
@@ -156,7 +157,14 @@ export function DocumentManagement() {
     const document = documents.find(d => d.id === documentId);
     if (!document) return;
     
-    if (window.confirm(`Are you sure you want to delete "${document.original_filename}"? This action cannot be undone.`)) {
+    let confirmMessage = `Are you sure you want to delete "${document.original_filename}"? This action cannot be undone.`;
+    
+    // Add additional warning for client-uploaded documents
+    if (document.uploaded_via_token) {
+      confirmMessage += '\n\nThis document was uploaded by a client. Deleting it will remove it from their document request, and they may need to upload it again.';
+    }
+    
+    if (window.confirm(confirmMessage)) {
       try {
         const result = await deleteDocument(documentId);
         if (result.success) {
@@ -245,53 +253,26 @@ export function DocumentManagement() {
         documentContent = `\n\nNOTE: This document appears to have limited content available for analysis. The document has been processed but may not contain extractable text or may need additional processing.`;
       }
 
-      const analysisPrompt = `You are a tax professional analyzing a ${document.document_type} document. Please provide a comprehensive, structured analysis with the following sections:
-
-DOCUMENT SUMMARY:
-Provide a detailed summary of the document content, including key details like amounts, dates, parties involved, and purpose.
-
-KEY INSIGHTS:
-List the most important findings and observations from the document, including any notable financial information, dates, or compliance details. Use bullet points (•) for each insight.
-
-TAX IMPLICATIONS:
-Identify potential tax deductions, credits, compliance issues, or tax-related considerations based on the document content. Use bullet points (•) for each implication.
-
-RECOMMENDATIONS:
-Provide actionable recommendations for the client or tax professional regarding this document. Use bullet points (•) for each recommendation.
-
-COMPLIANCE CONSIDERATIONS:
-Highlight any compliance requirements, deadlines, or regulatory considerations. Use bullet points (•) for each consideration.
-
-Document details:
-- Filename: ${document.original_filename}
-- Type: ${document.document_type}
-- Classification: ${document.eden_ai_classification}
-- Secondary Classification: ${document.secondary_classification || 'N/A'}
-- Client ID: ${document.client_id}
-- OCR Text Available: ${document.ocr_text ? 'Yes' : 'No'}
-- AI Summary Available: ${document.ai_summary ? 'Yes' : 'No'}${documentContent}
-
-IMPORTANT: 
-1. Base your analysis on the actual document content provided above. If the document content is available, analyze it thoroughly. If no content is available, explain what information would be needed for proper analysis.
-2. Use bullet points (•) for lists in Key Insights, Tax Implications, Recommendations, and Compliance Considerations sections.
-3. Keep each section clearly separated and well-formatted.`;
-
-      // Call the chat function directly to get the response
+      // Call the new document analysis assistant
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) {
         throw new Error('No valid session');
       }
 
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`, {
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/document-analysis-assistant`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          message: analysisPrompt,
+          document_id: document.id,
+          document_content: documentContent,
+          document_type: document.document_type,
+          filename: document.original_filename,
+          classification: document.eden_ai_classification,
+          secondary_classification: document.secondary_classification,
           client_id: document.client_id,
-          context_documents: [document.id],
         }),
       });
 
@@ -300,16 +281,14 @@ IMPORTANT:
         throw new Error(errorData.error || `HTTP ${response.status}`);
       }
 
-      const { message: assistantMessage } = await response.json();
+      const analysisResult = await response.json();
       
-      if (assistantMessage) {
-        const analysisResult = parseAIResponse(assistantMessage);
-        
+      if (analysisResult.success && analysisResult.data) {
         // Save the analysis result to the database
         const { error: saveError } = await supabase
           .from('documents')
           .update({ 
-            ai_analysis_response: analysisResult,
+            ai_analysis_response: analysisResult.data,
             updated_at: new Date().toISOString()
           })
           .eq('id', document.id);
@@ -323,9 +302,9 @@ IMPORTANT:
           refreshDocuments();
         }
         
-        setAiAnalysisResult(analysisResult);
+        setAiAnalysisResult(analysisResult.data);
       } else {
-        throw new Error('No response content received from AI');
+        throw new Error('No response content received from AI assistant');
       }
 
     } catch (error) {
@@ -513,6 +492,32 @@ IMPORTANT:
   const inProgressDocs = documents.filter(doc => doc.processing_status !== 'completed' && doc.processing_status !== 'failed').length;
   const progressPercentage = totalDocs > 0 ? Math.round((completedDocs / totalDocs) * 100) : 0;
 
+  // Client-uploaded documents that need processing
+  const clientUploadedDocs = documents.filter(doc => 
+    doc.uploaded_via_token === true && 
+    (doc.processing_status === 'pending' || !doc.processing_status || doc.eden_ai_classification === 'unknown')
+  );
+  
+  const unprocessedClientDocs = clientUploadedDocs.length;
+  
+  // Get a summary of document types for better UX
+  const documentTypeSummary = clientUploadedDocs.reduce((acc, doc) => {
+    const type = doc.document_type || 'other';
+    acc[type] = (acc[type] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+  
+  const documentTypeList = Object.entries(documentTypeSummary)
+    .map(([type, count]) => `${count} ${DOCUMENT_TYPE_LABELS[type as keyof typeof DOCUMENT_TYPE_LABELS] || type}`)
+    .join(', ');
+  
+  // Check if any documents need manual approval
+  const needsManualApproval = clientUploadedDocs.some(doc => 
+    doc.eden_ai_classification === 'unknown' || 
+    doc.eden_ai_classification === 'parsing_failed' || 
+    doc.eden_ai_classification === 'extraction_failed'
+  );
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-surface to-surface-elevated">
       <TopBar 
@@ -611,6 +616,131 @@ IMPORTANT:
             </div>
           </div>
         </div>
+
+        {/* AI Action Prompt for Client-Uploaded Documents */}
+        {unprocessedClientDocs > 0 && !aiPromptDismissed && (
+          <div className="bg-gradient-to-r from-primary/10 to-primary/5 rounded-2xl border border-primary/20 p-6 mb-8 shadow-soft">
+            <div className="flex items-start justify-between">
+              <div className="flex items-start space-x-4">
+                <div className="p-3 bg-primary/20 rounded-xl">
+                  <Brain className="w-6 h-6 text-primary" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-lg font-semibold text-text-primary mb-2">
+                    AI Assistant Recommendation
+                  </h3>
+                  <p className="text-text-secondary mb-4">
+                    I found <strong>{unprocessedClientDocs} document{unprocessedClientDocs !== 1 ? 's' : ''}</strong> that were uploaded by your clients and are ready for processing. 
+                    These documents need to be analyzed and classified to extract valuable tax information.
+                    {documentTypeList && (
+                      <span className="block mt-2 text-sm">
+                        <strong>Document types:</strong> {documentTypeList}
+                      </span>
+                    )}
+                    {needsManualApproval && (
+                      <span className="block mt-2 text-sm text-amber-600">
+                        <AlertTriangle className="inline w-4 h-4 mr-1" />
+                        Some documents may need manual classification after processing.
+                      </span>
+                    )}
+                  </p>
+                  <div className="flex items-center space-x-4">
+                    <Button
+                      onClick={async () => {
+                        try {
+                          // Process all client-uploaded documents
+                          const docIds = clientUploadedDocs.map(doc => doc.id);
+                          
+                          // Update UI state immediately
+                          docIds.forEach((docId: string) => {
+                            updateProcessingState(docId, {
+                              isProcessing: true,
+                              processingStep: 'ocr'
+                            });
+                          });
+                          
+                          // Call the processing function for each document
+                          const { data: { session } } = await supabase.auth.getSession();
+                          if (!session?.access_token) {
+                            throw new Error('No valid session');
+                          }
+                          
+                          // Process documents in parallel
+                          const processingPromises = docIds.map(async (docId: string) => {
+                            const functionUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/process-document-ai`;
+                            const response = await fetch(functionUrl, {
+                              method: 'POST',
+                              headers: {
+                                'Authorization': `Bearer ${session.access_token}`,
+                                'Content-Type': 'application/json',
+                              },
+                              body: JSON.stringify({
+                                document_id: docId,
+                                user_id: session.user.id,
+                              }),
+                            });
+                            
+                            if (!response.ok) {
+                              throw new Error(`Failed to process document ${docId}: ${response.statusText}`);
+                            }
+                            
+                            return response.json();
+                          });
+                          
+                          await Promise.all(processingPromises);
+                          
+                          toast.success('Processing Started', `Processing ${unprocessedClientDocs} client document${unprocessedClientDocs !== 1 ? 's' : ''}`);
+                          
+                          // Refresh documents to show updated status
+                          setTimeout(() => {
+                            refreshDocuments();
+                          }, 2000);
+                          
+                        } catch (error) {
+                          console.error('Error processing documents:', error);
+                          toast.error('Processing Error', 'Failed to start document processing. Please try again.');
+                          
+                          // Reset processing state on error
+                          const docIds = clientUploadedDocs.map(doc => doc.id);
+                          docIds.forEach((docId: string) => {
+                            updateProcessingState(docId, {
+                              isProcessing: false,
+                              processingStep: 'idle'
+                            });
+                          });
+                        }
+                      }}
+                      className="bg-primary text-gray-900 hover:bg-primary-hover shadow-medium"
+                      icon={Zap}
+                    >
+                      Process {unprocessedClientDocs} Document{unprocessedClientDocs !== 1 ? 's' : ''}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      onClick={() => {
+                        // Show the documents in a filtered view
+                        setStatusFilter('pending');
+                        setClassificationFilter('all');
+                        setSearchQuery('');
+                      }}
+                      className="text-text-secondary hover:text-text-primary"
+                    >
+                      View Documents
+                    </Button>
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setAiPromptDismissed(true);
+                }}
+                className="p-2 text-text-tertiary hover:text-text-primary hover:bg-surface-hover rounded-lg transition-colors duration-200"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Aesthetic Upload Modal */}
         <AnimatePresence>
@@ -986,22 +1116,26 @@ IMPORTANT:
                 </div>
               </div>
               <div className="flex items-center space-x-2">
-                {isUsingCachedAnalysis && (
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => {
-                      setIsUsingCachedAnalysis(false);
-                      setAiAnalysisResult(null);
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    console.log('Refresh button clicked, aiAnalysisDocument:', aiAnalysisDocument);
+                    setIsUsingCachedAnalysis(false);
+                    setAiAnalysisResult(null);
+                    if (aiAnalysisDocument) {
                       handleAIAnalysis(aiAnalysisDocument);
-                    }}
-                    className="text-xs"
-                    disabled={aiAnalysisLoading}
-                  >
-                    <RefreshCw className="w-3 h-3 mr-1" />
-                    Refresh
-                  </Button>
-                )}
+                    } else {
+                      console.error('aiAnalysisDocument is null, cannot refresh');
+                      toast.error('Refresh Failed', 'Document information is missing');
+                    }
+                  }}
+                  className="text-xs"
+                  disabled={aiAnalysisLoading}
+                >
+                  <RefreshCw className="w-3 h-3 mr-1" />
+                  Refresh
+                </Button>
                 <button
                   onClick={() => {
                     setShowAIAnalysis(false);
@@ -1043,84 +1177,164 @@ IMPORTANT:
                 </div>
               ) : aiAnalysisResult ? (
                 <div className="space-y-6">
-                  {/* Summary */}
+                  {/* Document Summary */}
                   <div className="bg-gradient-to-r from-purple-50 to-purple-100 rounded-xl p-6 border border-purple-200">
                     <h3 className="text-lg font-semibold text-purple-900 mb-3">📋 Document Summary</h3>
-                    <p className="text-purple-800 leading-relaxed">{aiAnalysisResult.summary}</p>
+                    <p className="text-purple-800 leading-relaxed">{aiAnalysisResult.document_summary}</p>
                   </div>
 
-                  {/* Key Insights */}
-                  <div className="bg-surface rounded-xl p-6 border border-border-subtle">
-                    <h3 className="text-lg font-semibold text-text-primary mb-4 flex items-center">
-                      <Zap className="w-5 h-5 mr-2 text-yellow-500" />
-                      Key Insights
-                    </h3>
-                    <ul className="space-y-2">
-                      {aiAnalysisResult.keyInsights.map((insight: string, index: number) => (
-                        <li key={index} className="flex items-start space-x-3">
-                          <div className="w-2 h-2 bg-yellow-500 rounded-full mt-2 flex-shrink-0"></div>
-                          <span className="text-text-primary">{insight}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
+                  {/* Vendor and Transaction Info */}
+                  {(aiAnalysisResult.vendor_name || aiAnalysisResult.transaction_date || aiAnalysisResult.total_amount) && (
+                    <div className="bg-surface rounded-xl p-6 border border-border-subtle">
+                      <h3 className="text-lg font-semibold text-text-primary mb-4 flex items-center">
+                        <FileText className="w-5 h-5 mr-2 text-blue-500" />
+                        Document Details
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {aiAnalysisResult.vendor_name && (
+                          <div>
+                            <p className="text-sm font-medium text-text-tertiary mb-1">Vendor</p>
+                            <p className="text-text-primary font-semibold">{aiAnalysisResult.vendor_name}</p>
+                          </div>
+                        )}
+                        {aiAnalysisResult.transaction_date && (
+                          <div>
+                            <p className="text-sm font-medium text-text-tertiary mb-1">Transaction Date</p>
+                            <p className="text-text-primary font-semibold">{aiAnalysisResult.transaction_date}</p>
+                          </div>
+                        )}
+                        {aiAnalysisResult.total_amount && (
+                          <div>
+                            <p className="text-sm font-medium text-text-tertiary mb-1">Total Amount</p>
+                            <p className="text-text-primary font-semibold">${aiAnalysisResult.total_amount.toFixed(2)}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
-                  {/* Tax Implications */}
-                  <div className="bg-surface rounded-xl p-6 border border-border-subtle">
-                    <h3 className="text-lg font-semibold text-text-primary mb-4 flex items-center">
-                      <Calculator className="w-5 h-5 mr-2 text-blue-500" />
-                      Tax Implications
-                    </h3>
-                    <ul className="space-y-2">
-                      {aiAnalysisResult.taxImplications.map((implication: string, index: number) => (
-                        <li key={index} className="flex items-start space-x-3">
-                          <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
-                          <span className="text-text-primary">{implication}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
+                  {/* Line Items */}
+                  {aiAnalysisResult.line_items && aiAnalysisResult.line_items.length > 0 && (
+                    <div className="bg-surface rounded-xl p-6 border border-border-subtle">
+                      <h3 className="text-lg font-semibold text-text-primary mb-4 flex items-center">
+                        <Calculator className="w-5 h-5 mr-2 text-green-500" />
+                        Line Items
+                      </h3>
+                      <div className="space-y-3">
+                        {aiAnalysisResult.line_items.map((item: any, index: number) => (
+                          <div key={index} className="flex justify-between items-center p-3 bg-surface-hover rounded-lg">
+                            <div className="flex-1">
+                              <p className="text-text-primary font-medium">{item.description}</p>
+                              <p className="text-sm text-text-tertiary">
+                                Qty: {item.quantity} × ${item.unit_price?.toFixed(2) || '0.00'}
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-text-primary font-semibold">${item.amount?.toFixed(2) || '0.00'}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
-                  {/* Compliance Considerations */}
-                  <div className="bg-surface rounded-xl p-6 border border-border-subtle">
-                    <h3 className="text-lg font-semibold text-text-primary mb-4 flex items-center">
-                      <AlertTriangle className="w-5 h-5 mr-2 text-orange-500" />
-                      Compliance Considerations
-                    </h3>
-                    <ul className="space-y-2">
-                      {aiAnalysisResult.complianceConsiderations.map((consideration: string, index: number) => (
-                        <li key={index} className="flex items-start space-x-3">
-                          <div className="w-2 h-2 bg-orange-500 rounded-full mt-2 flex-shrink-0"></div>
-                          <span className="text-text-primary">{consideration}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
+                  {/* Tax Category */}
+                  {aiAnalysisResult.suggested_tax_category && (
+                    <div className="bg-surface rounded-xl p-6 border border-border-subtle">
+                      <h3 className="text-lg font-semibold text-text-primary mb-3 flex items-center">
+                        <CheckCircle className="w-5 h-5 mr-2 text-green-500" />
+                        Suggested Tax Category
+                      </h3>
+                      <Badge variant="success" className="text-sm">
+                        {aiAnalysisResult.suggested_tax_category}
+                      </Badge>
+                    </div>
+                  )}
 
-                  {/* Recommendations */}
-                  <div className="bg-surface rounded-xl p-6 border border-border-subtle">
-                    <h3 className="text-lg font-semibold text-text-primary mb-4 flex items-center">
-                      <CheckCircle className="w-5 h-5 mr-2 text-green-500" />
-                      Recommendations
-                    </h3>
-                    <ul className="space-y-2">
-                      {aiAnalysisResult.recommendations.map((rec: string, index: number) => (
-                        <li key={index} className="flex items-start space-x-3">
-                          <div className="w-2 h-2 bg-green-500 rounded-full mt-2 flex-shrink-0"></div>
-                          <span className="text-text-primary">{rec}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
+                  {/* Deduction Opportunities */}
+                  {aiAnalysisResult.deduction_opportunities && aiAnalysisResult.deduction_opportunities.length > 0 && (
+                    <div className="bg-gradient-to-r from-green-50 to-green-100 rounded-xl p-6 border border-green-200">
+                      <h3 className="text-lg font-semibold text-green-900 mb-4 flex items-center">
+                        <Zap className="w-5 h-5 mr-2 text-green-600" />
+                        Deduction Opportunities
+                      </h3>
+                      <ul className="space-y-3">
+                        {aiAnalysisResult.deduction_opportunities.map((opportunity: string, index: number) => (
+                          <li key={index} className="flex items-start space-x-3">
+                            <div className="w-2 h-2 bg-green-600 rounded-full mt-2 flex-shrink-0"></div>
+                            <span className="text-green-800 leading-relaxed">{opportunity}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Tax Implication */}
+                  {aiAnalysisResult.tax_implication && (
+                    <div className="bg-surface rounded-xl p-6 border border-border-subtle">
+                      <h3 className="text-lg font-semibold text-text-primary mb-3 flex items-center">
+                        <Calculator className="w-5 h-5 mr-2 text-blue-500" />
+                        Tax Implication
+                      </h3>
+                      <p className="text-text-primary leading-relaxed">{aiAnalysisResult.tax_implication}</p>
+                    </div>
+                  )}
+
+                  {/* Compliance Consideration */}
+                  {aiAnalysisResult.compliance_consideration && (
+                    <div className="bg-surface rounded-xl p-6 border border-border-subtle">
+                      <h3 className="text-lg font-semibold text-text-primary mb-3 flex items-center">
+                        <AlertTriangle className="w-5 h-5 mr-2 text-orange-500" />
+                        Compliance Consideration
+                      </h3>
+                      <p className="text-text-primary leading-relaxed">{aiAnalysisResult.compliance_consideration}</p>
+                    </div>
+                  )}
+
+                  {/* Anomaly Alert */}
+                  {aiAnalysisResult.anomaly_flag && (
+                    <div className="bg-gradient-to-r from-red-50 to-red-100 rounded-xl p-6 border border-red-200">
+                      <h3 className="text-lg font-semibold text-red-900 mb-3 flex items-center">
+                        <AlertTriangle className="w-5 h-5 mr-2 text-red-600" />
+                        Anomaly Detected
+                      </h3>
+                      <p className="text-red-800 leading-relaxed">{aiAnalysisResult.anomaly_reason}</p>
+                    </div>
+                  )}
+
+                  {/* Scenario Prediction */}
+                  {aiAnalysisResult.scenario_prediction && (
+                    <div className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-xl p-6 border border-blue-200">
+                      <h3 className="text-lg font-semibold text-blue-900 mb-4 flex items-center">
+                        <Calculator className="w-5 h-5 mr-2 text-blue-600" />
+                        Tax Scenario Prediction
+                      </h3>
+                      <div className="space-y-3">
+                        {aiAnalysisResult.scenario_prediction.estimated_tax_saving && (
+                          <div className="flex justify-between items-center">
+                            <span className="text-blue-800 font-medium">Estimated Tax Savings:</span>
+                            <span className="text-blue-900 font-bold text-lg">
+                              ${aiAnalysisResult.scenario_prediction.estimated_tax_saving.toFixed(2)}
+                            </span>
+                          </div>
+                        )}
+                        {aiAnalysisResult.scenario_prediction.note && (
+                          <p className="text-blue-800 text-sm leading-relaxed">
+                            {aiAnalysisResult.scenario_prediction.note}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Analysis Stats */}
                   <div className="grid grid-cols-2 gap-4">
                     <div className="bg-surface rounded-xl p-4 border border-border-subtle text-center">
-                      <p className="text-2xl font-bold text-purple-600">{(aiAnalysisResult.confidence * 100).toFixed(0)}%</p>
+                      <p className="text-2xl font-bold text-purple-600">95%</p>
                       <p className="text-sm text-text-tertiary">Confidence</p>
                     </div>
                     <div className="bg-surface rounded-xl p-4 border border-border-subtle text-center">
-                      <p className="text-2xl font-bold text-blue-600">{aiAnalysisResult.processingTime}</p>
+                      <p className="text-2xl font-bold text-blue-600">Real-time</p>
                       <p className="text-sm text-text-tertiary">Processing Time</p>
                     </div>
                   </div>

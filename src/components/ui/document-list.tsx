@@ -157,10 +157,10 @@ const DocumentCard: React.FC<{
         <Button
           size="sm"
           variant="ghost"
-          icon={Edit}
+          icon={Eye}
           onClick={() => onEdit?.(document)}
         >
-          Edit
+          View
         </Button>
         <Button
           size="sm"
@@ -248,10 +248,10 @@ const DocumentListItem: React.FC<{
           <Button
             size="sm"
             variant="ghost"
-            icon={Edit}
+            icon={Eye}
             onClick={() => onEdit?.(document)}
           >
-            Edit
+            View
           </Button>
           <Button
             size="sm"

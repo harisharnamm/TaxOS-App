@@ -11,8 +11,10 @@ import { Tooltip } from '../components/ui/tooltip';
 import { useToast } from '../contexts/ToastContext';
 import { Skeleton, SkeletonText } from '../components/ui/skeleton';
 import { useClients } from '../hooks/useClients';
+import { useDocuments } from '../hooks/useDocuments';
 import { documentRequests as documentRequestsApi, emailCommunications } from '../lib/database';
 import { supabase } from '../lib/supabase';
+import { EnhancedDocumentPreview } from '../components/ui/enhanced-document-preview';
 import { 
   Search, 
   Filter, 
@@ -61,8 +63,9 @@ interface DocumentRequest {
 }
 
 export function ClientCommunications() {
-  const { isSearchOpen, closeSearch, openSearch } = useSearch();
+  const { isSearchOpen, closeSearch } = useSearch();
   const { clients } = useClients();
+  const { getDocumentPreviewURL, downloadDocument } = useDocuments();
   const toast = useToast();
   const [showRequestDialog, setShowRequestDialog] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<DocumentRequest | null>(null);
@@ -83,6 +86,11 @@ export function ClientCommunications() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Document preview state
+  const [previewDocument, setPreviewDocument] = useState<any>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [showPreview, setShowPreview] = useState(false);
 
   // Real document requests data from database
   const [documentRequests, setDocumentRequests] = useState<DocumentRequest[]>([]);
@@ -262,14 +270,49 @@ export function ClientCommunications() {
     }
   };
 
-  const handleViewDocument = (documentId?: string) => {
+  const handleViewDocument = async (documentId?: string) => {
+    console.log('🔍 handleViewDocument called with documentId:', documentId);
+    
     if (!documentId) {
       toast.error('Document Not Found', 'Document ID is missing');
       return;
     }
-    // TODO: Implement document viewing functionality
-    console.log('Viewing document:', documentId);
-    toast.info('Document Viewer', 'Document viewer will be implemented soon');
+
+    try {
+      console.log('📄 Fetching document details from database...');
+      // First, get the document details from the database
+      const { data: document, error: docError } = await supabase
+        .from('documents')
+        .select('*')
+        .eq('id', documentId)
+        .single();
+
+      if (docError || !document) {
+        console.error('Error fetching document:', docError);
+        toast.error('Document Not Found', 'Could not retrieve document details');
+        return;
+      }
+
+      console.log('✅ Document found:', document);
+      setPreviewDocument(document);
+      setShowPreview(true);
+
+      console.log('🔗 Getting preview URL...');
+      // Get the preview URL
+      const result = await getDocumentPreviewURL(documentId);
+      if (result.url) {
+        console.log('✅ Preview URL generated:', result.url);
+        setPreviewUrl(result.url);
+      } else {
+        console.error('❌ Failed to get preview URL:', result.error);
+        setShowPreview(false);
+        toast.error('Preview Failed', result.error || 'Failed to generate preview URL');
+      }
+    } catch (error) {
+      console.error('Preview error:', error);
+      setShowPreview(false);
+      toast.error('Preview Failed', 'An unexpected error occurred');
+    }
   };
 
   const refreshDocumentRequests = async () => {
@@ -503,25 +546,8 @@ export function ClientCommunications() {
         }}
       />
       
-      {/* Debug and refresh buttons */}
+      {/* Refresh button */}
       <div className="max-w-content mx-auto px-4 sm:px-6 md:px-8 py-2 flex gap-2">
-        <Button
-          onClick={async () => {
-            console.log('Testing database connection...');
-            try {
-              const requests = await documentRequestsApi.getAll();
-              console.log('Database test result:', requests);
-              toast.success('Test', `Found ${requests.length} document requests`);
-            } catch (error) {
-              console.error('Database test error:', error);
-              toast.error('Test Error', 'Database connection failed');
-            }
-          }}
-          variant="secondary"
-          size="sm"
-        >
-          Test Database
-        </Button>
         <Button
           onClick={async () => {
             try {
@@ -1644,6 +1670,21 @@ export function ClientCommunications() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Document Preview Modal */}
+      {showPreview && previewDocument && (
+        <EnhancedDocumentPreview
+          document={previewDocument}
+          previewUrl={previewUrl || undefined}
+          isOpen={showPreview}
+          onClose={() => {
+            setShowPreview(false);
+            setPreviewDocument(null);
+            setPreviewUrl(null);
+          }}
+          onDownload={() => downloadDocument(previewDocument.id, previewDocument.original_filename)}
+        />
       )}
     </div>
   );

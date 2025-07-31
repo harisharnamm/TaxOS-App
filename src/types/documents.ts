@@ -25,6 +25,8 @@ export interface Document {
   tax_processing_response?: any;
   processing_status?: string;
   secondary_classification?: string;
+  uploaded_via_token?: boolean;
+  upload_token?: string;
 }
 
 export type DocumentType = 

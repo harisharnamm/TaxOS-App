@@ -55,10 +55,7 @@ export function Clients() {
     phone?: string;
     address?: string;
     category: string;
-    address?: string;
     taxYear: number;
-    entityType: string;
-    requiredDocuments: string[];
     entityType: string;
     requiredDocuments: string[];
   }) => {
