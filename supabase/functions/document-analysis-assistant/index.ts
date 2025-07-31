@@ -116,7 +116,7 @@ IMPORTANT: Return ONLY valid JSON. Do not include any additional text or explana
 
     // Call OpenAI Assistant API directly
     const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY')
-    const ASSISTANT_ID = 'vs_688b7e283efc8191b9ebdecd87ef6230'
+    const ASSISTANT_ID = 'asst_IpqDfv3iOMDGhRjsNyAdd9uq'
 
     if (!OPENAI_API_KEY) {
       throw new Error('OPENAI_API_KEY is not set in environment variables')
@@ -130,7 +130,7 @@ IMPORTANT: Return ONLY valid JSON. Do not include any additional text or explana
       headers: {
         'Authorization': `Bearer ${OPENAI_API_KEY}`,
         'Content-Type': 'application/json',
-        'OpenAI-Beta': 'assistants=v1',
+        'OpenAI-Beta': 'assistants=v2',
       },
     })
 
@@ -149,7 +149,7 @@ IMPORTANT: Return ONLY valid JSON. Do not include any additional text or explana
       headers: {
         'Authorization': `Bearer ${OPENAI_API_KEY}`,
         'Content-Type': 'application/json',
-        'OpenAI-Beta': 'assistants=v1',
+        'OpenAI-Beta': 'assistants=v2',
       },
       body: JSON.stringify({
         role: 'user',
@@ -171,7 +171,7 @@ IMPORTANT: Return ONLY valid JSON. Do not include any additional text or explana
       headers: {
         'Authorization': `Bearer ${OPENAI_API_KEY}`,
         'Content-Type': 'application/json',
-        'OpenAI-Beta': 'assistants=v1',
+        'OpenAI-Beta': 'assistants=v2',
       },
       body: JSON.stringify({
         assistant_id: ASSISTANT_ID,
@@ -198,7 +198,7 @@ IMPORTANT: Return ONLY valid JSON. Do not include any additional text or explana
       const statusResponse = await fetch(`https://api.openai.com/v1/threads/${threadId}/runs/${runId}`, {
         headers: {
           'Authorization': `Bearer ${OPENAI_API_KEY}`,
-          'OpenAI-Beta': 'assistants=v1',
+          'OpenAI-Beta': 'assistants=v2',
         },
       })
 
@@ -224,7 +224,7 @@ IMPORTANT: Return ONLY valid JSON. Do not include any additional text or explana
       headers: {
         'Authorization': `Bearer ${OPENAI_API_KEY}`,
         'Content-Type': 'application/json',
-        'OpenAI-Beta': 'assistants=v1',
+        'OpenAI-Beta': 'assistants=v2',
       },
     })
 
