@@ -37,7 +37,7 @@ import {
   ChevronRight,
   Calculator
 } from 'lucide-react';
-import { Document } from '../types/documents';
+import { Document, DOCUMENT_TYPE_LABELS } from '../types/documents';
 
 
 export function DocumentManagement() {
@@ -62,6 +62,7 @@ export function DocumentManagement() {
   const [aiAnalysisLoading, setAiAnalysisLoading] = useState(false);
   const [aiAnalysisResult, setAiAnalysisResult] = useState<any>(null);
   const [isUsingCachedAnalysis, setIsUsingCachedAnalysis] = useState(false);
+  const [aiPromptDismissed, setAiPromptDismissed] = useState(false);
 
   // Listen for documents that need classification approval
   useEffect(() => {
@@ -156,7 +157,14 @@ export function DocumentManagement() {
     const document = documents.find(d => d.id === documentId);
     if (!document) return;
     
-    if (window.confirm(`Are you sure you want to delete "${document.original_filename}"? This action cannot be undone.`)) {
+    let confirmMessage = `Are you sure you want to delete "${document.original_filename}"? This action cannot be undone.`;
+    
+    // Add additional warning for client-uploaded documents
+    if (document.uploaded_via_token) {
+      confirmMessage += '\n\nThis document was uploaded by a client. Deleting it will remove it from their document request, and they may need to upload it again.';
+    }
+    
+    if (window.confirm(confirmMessage)) {
       try {
         const result = await deleteDocument(documentId);
         if (result.success) {
@@ -513,6 +521,32 @@ IMPORTANT:
   const inProgressDocs = documents.filter(doc => doc.processing_status !== 'completed' && doc.processing_status !== 'failed').length;
   const progressPercentage = totalDocs > 0 ? Math.round((completedDocs / totalDocs) * 100) : 0;
 
+  // Client-uploaded documents that need processing
+  const clientUploadedDocs = documents.filter(doc => 
+    doc.uploaded_via_token === true && 
+    (doc.processing_status === 'pending' || !doc.processing_status || doc.eden_ai_classification === 'unknown')
+  );
+  
+  const unprocessedClientDocs = clientUploadedDocs.length;
+  
+  // Get a summary of document types for better UX
+  const documentTypeSummary = clientUploadedDocs.reduce((acc, doc) => {
+    const type = doc.document_type || 'other';
+    acc[type] = (acc[type] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+  
+  const documentTypeList = Object.entries(documentTypeSummary)
+    .map(([type, count]) => `${count} ${DOCUMENT_TYPE_LABELS[type as keyof typeof DOCUMENT_TYPE_LABELS] || type}`)
+    .join(', ');
+  
+  // Check if any documents need manual approval
+  const needsManualApproval = clientUploadedDocs.some(doc => 
+    doc.eden_ai_classification === 'unknown' || 
+    doc.eden_ai_classification === 'parsing_failed' || 
+    doc.eden_ai_classification === 'extraction_failed'
+  );
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-surface to-surface-elevated">
       <TopBar 
@@ -611,6 +645,131 @@ IMPORTANT:
             </div>
           </div>
         </div>
+
+        {/* AI Action Prompt for Client-Uploaded Documents */}
+        {unprocessedClientDocs > 0 && !aiPromptDismissed && (
+          <div className="bg-gradient-to-r from-primary/10 to-primary/5 rounded-2xl border border-primary/20 p-6 mb-8 shadow-soft">
+            <div className="flex items-start justify-between">
+              <div className="flex items-start space-x-4">
+                <div className="p-3 bg-primary/20 rounded-xl">
+                  <Brain className="w-6 h-6 text-primary" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-lg font-semibold text-text-primary mb-2">
+                    AI Assistant Recommendation
+                  </h3>
+                  <p className="text-text-secondary mb-4">
+                    I found <strong>{unprocessedClientDocs} document{unprocessedClientDocs !== 1 ? 's' : ''}</strong> that were uploaded by your clients and are ready for processing. 
+                    These documents need to be analyzed and classified to extract valuable tax information.
+                    {documentTypeList && (
+                      <span className="block mt-2 text-sm">
+                        <strong>Document types:</strong> {documentTypeList}
+                      </span>
+                    )}
+                    {needsManualApproval && (
+                      <span className="block mt-2 text-sm text-amber-600">
+                        <AlertTriangle className="inline w-4 h-4 mr-1" />
+                        Some documents may need manual classification after processing.
+                      </span>
+                    )}
+                  </p>
+                  <div className="flex items-center space-x-4">
+                    <Button
+                      onClick={async () => {
+                        try {
+                          // Process all client-uploaded documents
+                          const docIds = clientUploadedDocs.map(doc => doc.id);
+                          
+                          // Update UI state immediately
+                          docIds.forEach((docId: string) => {
+                            updateProcessingState(docId, {
+                              isProcessing: true,
+                              processingStep: 'ocr'
+                            });
+                          });
+                          
+                          // Call the processing function for each document
+                          const { data: { session } } = await supabase.auth.getSession();
+                          if (!session?.access_token) {
+                            throw new Error('No valid session');
+                          }
+                          
+                          // Process documents in parallel
+                          const processingPromises = docIds.map(async (docId: string) => {
+                            const functionUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/process-document-ai`;
+                            const response = await fetch(functionUrl, {
+                              method: 'POST',
+                              headers: {
+                                'Authorization': `Bearer ${session.access_token}`,
+                                'Content-Type': 'application/json',
+                              },
+                              body: JSON.stringify({
+                                document_id: docId,
+                                user_id: session.user.id,
+                              }),
+                            });
+                            
+                            if (!response.ok) {
+                              throw new Error(`Failed to process document ${docId}: ${response.statusText}`);
+                            }
+                            
+                            return response.json();
+                          });
+                          
+                          await Promise.all(processingPromises);
+                          
+                          toast.success('Processing Started', `Processing ${unprocessedClientDocs} client document${unprocessedClientDocs !== 1 ? 's' : ''}`);
+                          
+                          // Refresh documents to show updated status
+                          setTimeout(() => {
+                            refreshDocuments();
+                          }, 2000);
+                          
+                        } catch (error) {
+                          console.error('Error processing documents:', error);
+                          toast.error('Processing Error', 'Failed to start document processing. Please try again.');
+                          
+                          // Reset processing state on error
+                          const docIds = clientUploadedDocs.map(doc => doc.id);
+                          docIds.forEach((docId: string) => {
+                            updateProcessingState(docId, {
+                              isProcessing: false,
+                              processingStep: 'idle'
+                            });
+                          });
+                        }
+                      }}
+                      className="bg-primary text-gray-900 hover:bg-primary-hover shadow-medium"
+                      icon={Zap}
+                    >
+                      Process {unprocessedClientDocs} Document{unprocessedClientDocs !== 1 ? 's' : ''}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      onClick={() => {
+                        // Show the documents in a filtered view
+                        setStatusFilter('pending');
+                        setClassificationFilter('all');
+                        setSearchQuery('');
+                      }}
+                      className="text-text-secondary hover:text-text-primary"
+                    >
+                      View Documents
+                    </Button>
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setAiPromptDismissed(true);
+                }}
+                className="p-2 text-text-tertiary hover:text-text-primary hover:bg-surface-hover rounded-lg transition-colors duration-200"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Aesthetic Upload Modal */}
         <AnimatePresence>

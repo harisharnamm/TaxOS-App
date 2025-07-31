@@ -357,6 +357,21 @@ export class DocumentService {
         return { error: dbError };
       }
 
+      // First, remove any references to this document in document_request_items
+      const { error: updateRequestItemsError } = await supabase
+        .from('document_request_items')
+        .update({ 
+          uploaded_document_id: null,
+          status: 'pending',
+          uploaded_at: null
+        })
+        .eq('uploaded_document_id', documentId);
+
+      if (updateRequestItemsError) {
+        console.error('Error updating document request items:', updateRequestItemsError);
+        return { error: updateRequestItemsError };
+      }
+
       if (document) {
         const bucketName = getBucketName(document.document_type as DocumentType);
         
@@ -366,7 +381,7 @@ export class DocumentService {
           .remove([document.storage_path]);
       }
 
-      // Delete from database (this will cascade to related records)
+      // Now delete from database
       const { error: deleteError } = await supabase
         .from('documents')
         .delete()
