@@ -1,5 +1,4 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { encode as hexEncode } from "https://deno.land/std@0.168.0/encoding/hex.ts";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -31,7 +30,8 @@ async function verifySignature(body: string, headers: Headers): Promise<boolean>
       ["verify"],
     );
 
-    const sigBytes = Uint8Array.from(Buffer.from(signature, "hex"));
+    // Convert hex string to bytes (avoid Node Buffer in Deno)
+    const sigBytes = new Uint8Array(signature.match(/.{1,2}/g)!.map((byte) => parseInt(byte, 16)));
     const ok = await crypto.subtle.verify(
       { name: "ECDSA", hash: { name: "SHA-256" } },
       key,

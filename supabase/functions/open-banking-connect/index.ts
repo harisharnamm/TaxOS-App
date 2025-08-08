@@ -36,8 +36,6 @@ async function fetchPartnerToken(): Promise<string> {
   return json.token;
 }
 
-const port = parseInt(Deno.env.get("PORT") ?? "8002");
-
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -130,6 +128,6 @@ serve(async (req) => {
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
-}, { port });
+});
 
 
