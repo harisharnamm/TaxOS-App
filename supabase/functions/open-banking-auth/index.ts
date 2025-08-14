@@ -27,6 +27,7 @@ async function fetchPartnerToken(): Promise<PartnerAuthResponse> {
       "Content-Type": "application/json",
       Accept: "application/json",
       "Finicity-App-Key": appKey,
+      "User-Agent": "TaxOS/1.0 (+preview.trytaxos.com)",
     },
     body: JSON.stringify({ partnerId, partnerSecret }),
   });

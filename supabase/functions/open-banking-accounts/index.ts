@@ -37,28 +37,38 @@ async function fetchPartnerToken(): Promise<string> {
   return json.token;
 }
 
-async function createTestCustomer(username: string, partnerToken: string) {
+async function getCustomerAccounts(finicityCustomerId: string): Promise<any> {
   const baseUrl = Deno.env.get("OPEN_BANKING_BASE_URL")?.replace(/\/$/, "") || "https://api.finicity.com";
   const appKey = Deno.env.get("OPEN_BANKING_APP_KEY");
-  if (!appKey) throw new Error("Missing OPEN_BANKING_APP_KEY");
+  
+  if (!appKey) {
+    throw new Error("Missing OPEN_BANKING_APP_KEY");
+  }
 
-  const url = `${baseUrl}/aggregation/v2/customers/testing`;
+  const token = await fetchPartnerToken();
+  const url = `${baseUrl}/aggregation/v1/customers/${finicityCustomerId}/accounts`;
+
   const res = await fetch(url, {
-    method: "POST",
+    method: "GET",
     headers: {
-      "Content-Type": "application/json",
       Accept: "application/json",
       "Finicity-App-Key": appKey,
-      "Finicity-App-Token": partnerToken,
+      "Finicity-App-Token": token,
       "User-Agent": "TaxOS/1.0 (+preview.trytaxos.com)",
     },
-    body: JSON.stringify({ username }),
   });
+
   if (!res.ok) {
+    if (res.status === 404) {
+      // No accounts found yet
+      return { accounts: [] };
+    }
     const text = await res.text();
-    throw new Error(`Create test customer failed: ${res.status} ${res.statusText} - ${text}`);
+    throw new Error(`Failed to fetch accounts: ${res.status} ${res.statusText} - ${text}`);
   }
-  return res.json();
+
+  const data = await res.json();
+  return data;
 }
 
 serve(async (req) => {
@@ -74,23 +84,50 @@ serve(async (req) => {
       });
     }
 
-    const body = await req.json().catch(() => ({}));
-    const username: string = body?.username || `taxos_test_${Date.now()}`;
+    const body = await req.json();
+    const finicityCustomerId: string = body?.finicityCustomerId;
 
-    const token = await fetchPartnerToken();
-    const customer = await createTestCustomer(username, token);
+    if (!finicityCustomerId) {
+      return new Response(JSON.stringify({ error: "Missing finicityCustomerId" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
-    return new Response(
-      JSON.stringify({ customer, username }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
+    try {
+      const accountsData = await getCustomerAccounts(finicityCustomerId);
+      
+      return new Response(JSON.stringify({
+        success: true,
+        finicityCustomerId,
+        accounts: accountsData.accounts || [],
+        accountCount: (accountsData.accounts || []).length,
+        hasAccounts: (accountsData.accounts || []).length > 0,
+        status: (accountsData.accounts || []).length > 0 ? 'linked' : 'pending'
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    } catch (error) {
+      console.error("Error fetching customer accounts:", error);
+      return new Response(JSON.stringify({
+        success: false,
+        error: "Failed to fetch customer accounts",
+        details: (error as Error).message,
+        finicityCustomerId,
+        accounts: [],
+        accountCount: 0,
+        hasAccounts: false,
+        status: 'pending'
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
   } catch (error) {
-    console.error("open-banking-customer error", error);
+    console.error("open-banking-accounts error", error);
     return new Response(
       JSON.stringify({ error: "Internal server error", details: (error as Error).message }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
 });
-
-

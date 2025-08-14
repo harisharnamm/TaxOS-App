@@ -64,57 +64,27 @@ serve(async (req) => {
 
     const body = await req.json();
     const finicityCustomerId: string = body?.customerId;
-    const consumerId: string | undefined = body?.consumerId;
-    const language: string = body?.language || 'en';
-    const emailTo: string = body?.email?.to;
-    const firstName: string = body?.email?.firstName || "Client";
-    const institutionName: string = body?.email?.institutionName || "TaxOS";
-    const institutionAddress: string = body?.email?.institutionAddress || "United States";
     const singleUseUrl: boolean = body?.singleUseUrl ?? true;
-    const experience: string | undefined = body?.experience;
-    const fromDate: number | undefined = body?.fromDate;
-    const reportCustomFields: unknown[] | undefined = body?.reportCustomFields;
-    const optionalConsumerInfo: Record<string, unknown> | undefined = body?.optionalConsumerInfo;
-    const webhookData: Record<string, unknown> | undefined = body?.webhookData;
-    const webhookHeaders: Record<string, string> | undefined = body?.webhookHeaders;
-    const institutionSettings: Record<string, unknown> | undefined = body?.institutionSettings;
 
-    if (!finicityCustomerId || !emailTo) {
-      return new Response(JSON.stringify({ error: "Missing customerId or email.to" }), {
+    if (!finicityCustomerId) {
+      return new Response(JSON.stringify({ error: "Missing customerId" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     const token = await fetchPartnerToken();
-    const url = `${baseUrl}/connect/v2/send/email`;
+    const url = `${baseUrl}/connect/v2/generate`;
 
-    const payload: Record<string, unknown> = {
+    const payload = {
+      language: "en",
       partnerId,
       customerId: finicityCustomerId,
-      language,
       redirectUri,
       webhook: webhookUrl,
       webhookContentType: "application/json",
-      email: {
-        to: emailTo,
-        supportPhone: body?.email?.supportPhone,
-        subject: body?.email?.subject || "Please link your bank account",
-        firstName,
-        institutionName,
-        institutionAddress,
-        signature: body?.email?.signature,
-      },
       singleUseUrl,
     };
-    if (consumerId) payload.consumerId = consumerId;
-    if (experience) payload.experience = experience;
-    if (fromDate) payload.fromDate = fromDate;
-    if (reportCustomFields) payload.reportCustomFields = reportCustomFields;
-    if (optionalConsumerInfo) payload.optionalConsumerInfo = optionalConsumerInfo;
-    if (webhookData) payload.webhookData = webhookData;
-    if (webhookHeaders) payload.webhookHeaders = webhookHeaders;
-    if (institutionSettings) payload.institutionSettings = institutionSettings;
 
     const res = await fetch(url, {
       method: "POST",
@@ -129,22 +99,23 @@ serve(async (req) => {
     });
     if (!res.ok) {
       const text = await res.text();
-      return new Response(JSON.stringify({ error: "Send Connect email failed", details: text }), {
+      return new Response(JSON.stringify({ error: "Generate Connect URL failed", details: text }), {
         status: res.status,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
     const data = await res.json();
-    return new Response(JSON.stringify({ sent: true, data }), {
+    return new Response(JSON.stringify({ ok: true, data }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
-    console.error("open-banking-connect error", error);
+    console.error("open-banking-connect-generate error", error);
     return new Response(
       JSON.stringify({ error: "Internal server error", details: (error as Error).message }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
 });
+
 
 
