@@ -23,12 +23,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const auth = useAuth();
 
-  // Debug the auth state being provided
-  console.log('🔍 AuthProvider values:', {
-    user: auth.user?.email,
-    loading: auth.loading,
-    hasSession: !!auth.session
-  });
+  // Auth state management
 
   return (
     <AuthContext.Provider value={auth}>

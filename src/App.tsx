@@ -12,23 +12,29 @@ import { Dashboard } from './pages/Dashboard';
 import { Clients } from './pages/Clients';
 import { ClientDetail } from './pages/ClientDetail';
 import { Tasks } from './pages/Tasks';
-import { Hub1099 } from './pages/Hub1099';
+import { Transactions } from './pages/Transactions';
+import { TransactionMatching } from './pages/Reconciliation';
+import { Workpapers } from './pages/Workpapers';
+import { Vendors } from './pages/Vendors';
 import { MyZone } from './pages/MyZone';
 import { DocumentManagement } from './pages/DocumentManagement';
-import { AITaxAssistant } from './pages/AITaxAssistant';
+import { AIAssistant } from './pages/AIAssistant';
 import { Settings } from './pages/SettingsPage';
 import { ClientCommunications } from './pages/ClientCommunications';
+import { FluxAnalysis } from './pages/Analytics';
 import ClientUpload from './pages/ClientUpload';
+import { OpenBankingCallback } from './pages/OpenBankingCallback';
 import { SignIn } from './pages/SignIn';
 import { SignUp } from './pages/SignUp';
 import { ForgotPassword } from './pages/ForgotPassword';
 import { ResetPassword } from './pages/ResetPassword';
 
+
 function AppContent() {
   const location = useLocation();
   
   useEffect(() => {
-    console.log('🔄 Route changed to:', location.pathname);
+    // Route change tracking for analytics
   }, [location]);
 
   // Main app layout component
@@ -78,6 +84,34 @@ function AppContent() {
           </AppLayout>
         </ProtectedRoute>
       } />
+      <Route path="/transactions" element={
+        <ProtectedRoute>
+          <AppLayout>
+            <Transactions />
+          </AppLayout>
+        </ProtectedRoute>
+      } />
+      <Route path="/vendors" element={
+        <ProtectedRoute>
+          <AppLayout>
+            <Vendors />
+          </AppLayout>
+        </ProtectedRoute>
+      } />
+      <Route path="/transaction-matching" element={
+        <ProtectedRoute>
+          <AppLayout>
+            <TransactionMatching />
+          </AppLayout>
+        </ProtectedRoute>
+      } />
+      <Route path="/transaction-matching/:clientId" element={
+        <ProtectedRoute>
+          <AppLayout>
+            <TransactionMatching />
+          </AppLayout>
+        </ProtectedRoute>
+      } />
       <Route path="/my-zone" element={
         <ProtectedRoute>
           <AppLayout>
@@ -92,10 +126,31 @@ function AppContent() {
           </AppLayout>
         </ProtectedRoute>
       } />
-      <Route path="/deduction-chat" element={
+      <Route path="/ai-assistant" element={
         <ProtectedRoute>
           <AppLayout>
-            <AITaxAssistant />
+            <AIAssistant />
+          </AppLayout>
+        </ProtectedRoute>
+      } />
+      <Route path="/transactions/analytics" element={
+        <ProtectedRoute>
+          <AppLayout>
+            <FluxAnalysis />
+          </AppLayout>
+        </ProtectedRoute>
+      } />
+      <Route path="/workpapers" element={
+        <ProtectedRoute>
+          <AppLayout>
+            <Workpapers />
+          </AppLayout>
+        </ProtectedRoute>
+      } />
+      <Route path="/workpapers/:clientId" element={
+        <ProtectedRoute>
+          <AppLayout>
+            <Workpapers />
           </AppLayout>
         </ProtectedRoute>
       } />
@@ -113,6 +168,7 @@ function AppContent() {
           </AppLayout>
         </ProtectedRoute>
       } />
+
     </Routes>
   );
 }

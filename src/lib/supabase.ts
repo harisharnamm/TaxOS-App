@@ -7,12 +7,7 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const siteUrl = import.meta.env.VITE_SITE_URL || 
   (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5173');
 
-console.log('Environment check:', {
-  url: supabaseUrl,
-  key: supabaseAnonKey ? `${supabaseAnonKey.substring(0, 10)}...` : 'Missing',
-  nodeEnv: import.meta.env.MODE,
-  siteUrl
-});
+// Environment validation completed
 
 if (!supabaseUrl || !supabaseAnonKey) {
   console.error('Missing Supabase environment variables:', {
@@ -38,13 +33,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   }
 });
 
-// Test connection and log environment
-console.log('🔗 Supabase client initialized', {
-  url: supabaseUrl,
-  hasKey: !!supabaseAnonKey,
-  keyPrefix: supabaseAnonKey?.substring(0, 20) + '...',
-  siteUrl
-});
+// Supabase client initialized successfully
 
 // Enhanced connection testing with better recovery options
 let connectionTestRunning = true;
@@ -57,11 +46,7 @@ Promise.race([
   const { data, error } = result;
   connectionTestRunning = false;
   
-  console.log('🔍 Initial session check (fast):', { 
-    hasSession: !!data?.session, 
-    userId: data?.session?.user?.id,
-    error: error?.message 
-  });
+  // Initial session check completed
   
   // Return success flag to any listeners
   window.dispatchEvent(new CustomEvent('supabase:connection:success'));
@@ -77,11 +62,7 @@ Promise.race([
       const { data, error } = result;
       connectionTestRunning = false;
       
-      console.log('🔍 Extended session check:', { 
-        hasSession: !!data?.session, 
-        userId: data?.session?.user?.id,
-        error: error?.message 
-      });
+      // Extended session check completed
       
       // Return success flag to any listeners
       window.dispatchEvent(new CustomEvent('supabase:connection:success'));

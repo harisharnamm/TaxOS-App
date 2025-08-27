@@ -22,6 +22,7 @@ import { Skeleton, SkeletonText } from '../components/ui/skeleton';
 import { Button } from '../components/atoms/Button';
 import { Badge } from '../components/atoms/Badge';
 import { Input } from '../components/atoms/Input';
+import { OpenBankingSection } from '../components/ui/open-banking-section';
 import { generateTransactionId } from '../lib/utils';
 import { supabase } from '../lib/supabase';
 import { 
@@ -776,6 +777,13 @@ export function ClientDetail() {
 
             {/* Sidebar */}
             <div className="space-y-6">
+              {/* Open Banking Section */}
+              <OpenBankingSection 
+                clientId={client.id}
+                clientEmail={client.email}
+                clientName={client.name}
+              />
+
               {/* Quick Actions */}
               <div className="bg-surface-elevated rounded-2xl border border-border-subtle p-6 shadow-soft">
                 <h3 className="font-semibold text-text-primary mb-4">Quick Actions</h3>

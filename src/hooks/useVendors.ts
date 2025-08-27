@@ -1,12 +1,81 @@
 import { useState, useEffect, useCallback } from 'react';
-import { vendorsApi, Vendor } from '../lib/database';
+import { vendorsApi, Vendor, PaymentTransaction } from '../lib/database';
+import { supabase } from '../lib/supabase';
 import { useAuthContext } from '../contexts/AuthContext';
 
-export function useVendors() {
+export interface VendorAnalytics {
+  totalPaid: number;
+  transactionCount: number;
+  averageInvoiceSize: number;
+  lastTransaction?: PaymentTransaction;
+  lastTransactionDate?: string;
+  outstandingBalance: number;
+  pendingPayments: number;
+}
+
+export function useVendors(selectedClientId?: string) {
   const { user, loading: authLoading } = useAuthContext();
   const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [vendorAnalytics, setVendorAnalytics] = useState<Record<string, VendorAnalytics>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const fetchVendorAnalytics = useCallback(async (vendorIds: string[]) => {
+    if (!user || vendorIds.length === 0) {
+      return {};
+    }
+
+    try {
+      // Fetch payment transactions for all vendors
+      let query = supabase
+        .from('payment_transactions')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('payment_date', { ascending: false });
+
+      // Only add vendor_id filter if we have vendor IDs
+      if (vendorIds.length > 0) {
+        query = query.in('vendor_id', vendorIds);
+      }
+
+      // Also filter by client_id if selectedClientId is provided
+      if (selectedClientId) {
+        query = query.eq('client_id', selectedClientId);
+      }
+
+      const { data: transactions, error: txError } = await query;
+
+      if (txError) {
+        throw txError;
+      }
+
+      // Calculate analytics for each vendor
+      const analytics: Record<string, VendorAnalytics> = {};
+
+      vendorIds.forEach(vendorId => {
+        const vendorTransactions = transactions?.filter(tx => tx.vendor_id === vendorId) || [];
+        const totalPaid = vendorTransactions.reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
+        const transactionCount = vendorTransactions.length;
+        const averageInvoiceSize = transactionCount > 0 ? totalPaid / transactionCount : 0;
+        const lastTransaction = vendorTransactions[0];
+
+        analytics[vendorId] = {
+          totalPaid,
+          transactionCount,
+          averageInvoiceSize,
+          lastTransaction,
+          lastTransactionDate: lastTransaction?.payment_date,
+          outstandingBalance: 0, // Could be calculated based on open invoices
+          pendingPayments: 0 // Could be calculated based on pending transactions
+        };
+      });
+
+      return analytics;
+    } catch (err) {
+      // Return empty analytics instead of throwing to prevent app crash
+      return {};
+    }
+  }, [user]);
 
   const fetchVendors = useCallback(async () => {
     if (!user) return;
@@ -14,35 +83,32 @@ export function useVendors() {
     try {
       setLoading(true);
       setError(null);
-      
-      console.log('🔄 Vendors: Starting data fetch...');
-      console.log('🔄 Vendors: User authenticated:', user?.email);
-      
-      const vendorsData = await vendorsApi.getAll();
-      
-      console.log('✅ Vendors: Found', vendorsData?.length, 'vendors');
+
+      const vendorsData = await vendorsApi.getAll(selectedClientId);
+
+      // Fetch analytics for all vendors
+      const vendorIds = vendorsData?.map(v => v.id) || [];
+      const analytics = await fetchVendorAnalytics(vendorIds);
+
       setVendors(vendorsData || []);
+      setVendorAnalytics(analytics);
     } catch (err) {
-      console.error('❌ Vendors: Error fetching data:', err);
+      console.error('Error fetching vendors:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch vendors');
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user, selectedClientId, fetchVendorAnalytics]);
 
   useEffect(() => {
     // Only fetch data when authentication is complete and user exists
     if (!authLoading && user) {
-      console.log('🔄 Vendors: Auth complete, starting data fetch');
       fetchVendors();
     } else if (!authLoading && !user) {
-      console.log('❌ Vendors: No authenticated user');
       setError('Please sign in to view vendors data');
       setLoading(false);
-    } else {
-      console.log('⏳ Vendors: Waiting for authentication...');
     }
-  }, [authLoading, user?.id, fetchVendors]);
+  }, [authLoading, user?.id, selectedClientId, fetchVendors]);
 
   const addVendor = async (vendorData: Omit<Vendor, 'id' | 'user_id' | 'created_at' | 'updated_at'>) => {
     try {
@@ -74,6 +140,7 @@ export function useVendors() {
 
   return {
     vendors,
+    vendorAnalytics,
     loading,
     error,
     addVendor,
