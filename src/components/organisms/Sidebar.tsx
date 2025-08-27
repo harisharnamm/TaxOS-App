@@ -11,7 +11,7 @@ import {
   CheckSquare,
   AlertTriangle, 
   MessageSquare as ChatIcon, 
- Settings,
+   Settings,
   Sparkles,
   X,
   Search as SearchIcon,
@@ -70,6 +70,14 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
 
         {/* Logo - Fixed at top */}
         <div className="flex-shrink-0 flex items-center px-6 sm:px-8 py-6 sm:py-8">
+<<<<<<< HEAD
+          <div className="flex items-center">
+            <img 
+              src="/taxos-logo.png" 
+              alt="Taxos" 
+              className="h-12 sm:h-10 w-auto"
+            />
+=======
           <div className="flex items-center space-x-3">
             <div className="p-2 bg-primary rounded-xl shadow-soft">
               <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-gray-900" />
@@ -78,6 +86,7 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
               <span className="text-lg sm:text-xl font-semibold text-text-primary tracking-tight">TaxOS</span>
               <p className="text-xs text-text-tertiary font-medium">by Nurahex</p>
             </div>
+>>>>>>> origin/main
           </div>
         </div>
 

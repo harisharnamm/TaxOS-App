@@ -53,7 +53,7 @@ export function useBookkeepingTransactions(clientId?: string) {
         .from('transactions')
         .select(`
           *,
-          open_banking_accounts!inner(
+          open_banking_accounts(
             name,
             type
           )
