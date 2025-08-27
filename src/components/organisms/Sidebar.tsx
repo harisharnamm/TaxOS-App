@@ -9,12 +9,10 @@ import {
   GraduationCap,
   FileText, 
   CheckSquare,
-  AlertTriangle, 
   MessageSquare as ChatIcon, 
  Settings,
   Sparkles,
   X,
-  Search as SearchIcon,
   Banknote,
   Link,
   ChevronDown,
@@ -29,7 +27,7 @@ interface SidebarProps {
 
 export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   const { profile, signOut } = useAuthContext();
-  const { closeSidebar, toggleSidebar } = useSidebar();
+  const { closeSidebar } = useSidebar();
   const [bookkeepingExpanded, setBookkeepingExpanded] = useState(true);
   
   const handleSignOut = async () => {
