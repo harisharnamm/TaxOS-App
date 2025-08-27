@@ -166,7 +166,7 @@ async function deleteAccounts(customerId: string, accountIds: string[]) {
       .delete()
       .eq('finicity_customer_id', customerId)
       .in('id', accountIds);
-    
+
     if (error) {
       console.error('Error deleting accounts:', error);
     } else {
@@ -174,6 +174,73 @@ async function deleteAccounts(customerId: string, accountIds: string[]) {
     }
   } catch (error) {
     console.error('Error deleting accounts:', error);
+  }
+}
+
+// 🚀 ENABLE TXPUSH FOR REAL-TIME TRANSACTIONS
+async function enableTxPushForCustomer(customerId: string) {
+  try {
+    const baseUrl = Deno.env.get("OPEN_BANKING_BASE_URL")?.replace(/\/$/, "") || "https://api.finicity.com";
+    const partnerId = Deno.env.get("OPEN_BANKING_PARTNER_ID");
+    const appKey = Deno.env.get("OPEN_BANKING_APP_KEY");
+    const webhookUrl = Deno.env.get("OPEN_BANKING_WEBHOOK_URL");
+
+    if (!partnerId || !appKey || !webhookUrl) {
+      console.error('Missing required environment variables for TxPush');
+      return;
+    }
+
+    // Get partner token
+    const tokenResponse = await fetch(`${baseUrl}/aggregation/v2/partners/authentication`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Finicity-App-Key': appKey,
+        'Accept': 'application/json',
+        'User-Agent': 'TaxOS/1.0 (+preview.trytaxos.com)',
+      },
+      body: JSON.stringify({
+        partnerId: partnerId,
+        partnerSecret: Deno.env.get("OPEN_BANKING_PARTNER_SECRET")
+      })
+    });
+
+    if (!tokenResponse.ok) {
+      console.error('Failed to get partner token for TxPush');
+      return;
+    }
+
+    const tokenData = await tokenResponse.json();
+    const token = tokenData.token;
+
+    // Enable TxPush for the customer
+    const txPushUrl = `${baseUrl}/aggregation/v2/customers/${customerId}/txpush`;
+
+    const txPushResponse = await fetch(txPushUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Finicity-App-Key': appKey,
+        'Finicity-App-Token': token,
+        'Accept': 'application/json',
+        'User-Agent': 'TaxOS/1.0 (+preview.trytaxos.com)',
+      },
+      body: JSON.stringify({
+        callbackUrl: webhookUrl,
+        enabled: true
+      })
+    });
+
+    if (txPushResponse.ok) {
+      const txPushData = await txPushResponse.json();
+      console.log(`✅ TxPush enabled successfully for customer ${customerId}:`, txPushData);
+    } else {
+      const errorText = await txPushResponse.text();
+      console.error(`❌ Failed to enable TxPush for customer ${customerId}:`, txPushResponse.status, errorText);
+    }
+
+  } catch (error) {
+    console.error('Error enabling TxPush for customer:', error);
   }
 }
 
@@ -207,12 +274,16 @@ async function handleSpecificEvent(event: WebhookEvent) {
     case 'added':
       // Customer added accounts - this is the key event!
       console.log(`Customer ${customerId} added accounts:`, payload);
-      
+
       // Store the account data
       if (payload?.accounts && Array.isArray(payload.accounts)) {
         await storeAccounts(customerId, payload.accounts);
       }
-      
+
+      // 🚀 ENABLE TXPUSH FOR REAL-TIME TRANSACTIONS
+      console.log(`🚀 Enabling TxPush for customer ${customerId}...`);
+      await enableTxPushForCustomer(customerId);
+
       // Update customer status to linked
       await updateCustomerStatus(customerId, 'linked', payload);
       break;
