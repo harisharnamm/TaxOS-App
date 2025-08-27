@@ -165,7 +165,9 @@ async function sendBankAuthEmail(
           ]
         },
         experience: "2fef3f47-3b71-4055-930e-c9df0ca8a87f",
-        singleUseUrl: true
+        singleUseUrl: true,
+        // 🚀 FETCH HISTORICAL TRANSACTIONS: Set fromDate to 2 years ago
+        fromDate: Math.floor(Date.now() / 1000) - (2 * 365 * 24 * 60 * 60) // 2 years ago in Unix timestamp
       }),
     });
 

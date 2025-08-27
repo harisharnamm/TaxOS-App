@@ -334,7 +334,21 @@ async function handleSpecificEvent(event: WebhookEvent) {
       console.log(`TxPush transaction deleted for customer ${customerId}:`, payload);
       await handleTransactionDeletion(customerId, payload);
       break;
-      
+
+    case 'done':
+      // Connect session completed with historical transactions
+      console.log(`Customer ${customerId} completed Connect session with historical data:`, payload);
+
+      // Process historical transactions if they exist
+      if (payload?.transactions && payload.transactions.length > 0) {
+        console.log(`📊 Found ${payload.transactions.length} historical transactions to process`);
+        await processHistoricalTransactions(customerId, payload);
+      }
+
+      // Also enable TxPush for future real-time transactions
+      await enableTxPushForCustomer(customerId);
+      break;
+
     default:
       console.log(`Unknown event type: ${eventType} for customer ${customerId}`);
   }
@@ -465,21 +479,107 @@ async function processTxPushTransaction(customerId: string, payload: any) {
 async function handleTransactionDeletion(customerId: string, payload: any) {
   try {
     console.log(`Handling transaction deletion for customer ${customerId}:`, payload);
-    
+
     // Mark transaction as deleted or remove it
     const { error: deleteError } = await supabase
       .from('transactions')
       .delete()
       .eq('tx_id_ext', payload.transaction.id);
-    
+
     if (deleteError) {
       console.error('Error deleting transaction:', deleteError);
     } else {
       console.log(`Successfully deleted transaction ${payload.transaction.id}`);
     }
-    
+
   } catch (error) {
     console.error('Error handling transaction deletion:', error);
+  }
+}
+
+// 🚀 HANDLE HISTORICAL TRANSACTIONS from Connect flow
+async function processHistoricalTransactions(customerId: string, payload: any) {
+  try {
+    console.log(`📊 Processing historical transactions for customer ${customerId}:`, payload);
+
+    // Find the customer mapping to get platform client ID
+    const { data: customerMapping, error: findError } = await supabase
+      .from('open_banking_customers')
+      .select('platform_client_id, finicity_customer_id')
+      .eq('finicity_customer_id', customerId)
+      .single();
+
+    if (findError || !customerMapping) {
+      console.error('Error finding customer mapping for historical transactions:', findError);
+      return;
+    }
+
+    const { platform_client_id, finicity_customer_id } = customerMapping;
+
+    // Process historical transactions (these come in batches from Connect)
+    if (payload.transactions && Array.isArray(payload.transactions)) {
+      console.log(`📊 Processing ${payload.transactions.length} historical transactions`);
+
+      for (const transaction of payload.transactions) {
+        try {
+          // Find the account mapping
+          const { data: accountMapping, error: accountError } = await supabase
+            .from('open_banking_accounts')
+            .select('id, name, type')
+            .eq('finicity_customer_id', finicity_customer_id)
+            .eq('id', transaction.accountId)
+            .single();
+
+          if (accountError || !accountMapping) {
+            console.error('Error finding account mapping for historical transaction:', accountError);
+            continue;
+          }
+
+          // Prepare historical transaction data
+          const transactionData = {
+            tx_id_ext: transaction.id,
+            user_id: platform_client_id,
+            client_id: platform_client_id,
+            account_id: accountMapping.id,
+            date_posted: new Date(transaction.postedDate * 1000).toISOString().split('T')[0],
+            amount: transaction.amount,
+            raw_description: transaction.description,
+            status: 'for_review',
+            enrichment_source: 'finicity_historical', // Mark as historical data
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          };
+
+          console.log(`📝 Inserting historical transaction:`, transactionData);
+
+          // Insert the historical transaction
+          const { data: insertedTx, error: insertError } = await supabase
+            .from('transactions')
+            .upsert(transactionData, {
+              onConflict: 'tx_id_ext'
+            })
+            .select()
+            .single();
+
+          if (insertError) {
+            console.error('Error inserting historical transaction:', insertError);
+          } else {
+            console.log(`✅ Successfully processed historical transaction ${transaction.id}`);
+
+            // 🚀 IMMEDIATE AI ENHANCEMENT for historical transactions too
+            await enhanceTransactionWithAI(insertedTx.id, transactionData);
+          }
+
+        } catch (txError) {
+          console.error('Error processing individual historical transaction:', txError);
+        }
+      }
+    } else {
+      console.log('No historical transactions found in payload');
+    }
+
+  } catch (error) {
+    console.error('Error processing historical transactions:', error);
   }
 }
 
