@@ -152,17 +152,19 @@ async function sendBankAuthEmail(
         webhookContentType: "application/json",
         email: {
           to: clientEmail,
+          from: "banking@taxos.space",
           subject: "Please link your bank account to TaxOS",
           firstName: clientName.split(" ")[0] || "Client",
           institutionName: "TaxOS",
           institutionAddress: "United States",
-          supportPhone: "800-555-5555",
+          supportPhone: "7065880088",
           signature: [
             "TaxOS Team",
             "Certified Public Accountants",
-            "Direct: 800-555-5555"
+            "Direct: 7065880088"
           ]
         },
+        experience: "2fef3f47-3b71-4055-930e-c9df0ca8a87f",
         singleUseUrl: true
       }),
     });

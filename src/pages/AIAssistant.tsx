@@ -5,7 +5,7 @@ import { GlobalSearch } from '../components/molecules/GlobalSearch';
 import { useSearch } from '../contexts/SearchContext';
 import { Button } from '../components/atoms/Button';
 import { Badge } from '../components/atoms/Badge';
-import { Send, Sparkles, FileText, Calculator, Trash2, RefreshCw, Paperclip, X, Users2, AlertTriangle, User, ChevronDown } from 'lucide-react';
+import { Send, Sparkles, FileText, Calculator, Trash2, RefreshCw, Paperclip, X, Users2, AlertTriangle, User, ChevronDown, TrendingUp } from 'lucide-react';
 import { useChat } from '../hooks/useChat';
 import { useClients } from '../hooks/useClients';
 import { useVendors } from '../hooks/useVendors';
@@ -14,7 +14,7 @@ import { useDocumentUpload } from '../hooks/useDocumentUpload';
 import { formatFileSize } from '../lib/uploadUtils';
 import { cn } from '../lib/utils';
 
-type ChatMode = 'general' | 'client' | 'vendor';
+type ChatMode = 'general' | 'client' | 'vendor' | 'financial';
 
 interface ChatContext {
   mode: ChatMode;
@@ -23,7 +23,7 @@ interface ChatContext {
   documentIds?: string[];
 }
 
-export function AITaxAssistant() {
+export function AIAssistant() {
   const { clients } = useClients();
   const { vendors } = useVendors();
   const [chatContext, setChatContext] = useState<ChatContext>({ mode: 'general' });
@@ -84,12 +84,37 @@ export function AITaxAssistant() {
 
       case 'vendor':
         return `Hello! I'm your AI tax assistant, now focused on the selected vendor. I can help you with 1099 requirements, vendor compliance, and payment tracking. What would you like to know about this vendor?`;
+      
+      case 'financial':
+        return `Hello! I'm your AI financial analysis assistant. I can help you with period metrics, flux analysis, reconciliation status, accruals, prepaids, and document management. What financial analysis would you like to perform?`;
+      
       default:
-        return `Hello! I'm your AI tax assistant. I can help you with general tax guidance, analyze documents, answer tax questions, and provide professional advice. You can switch contexts to focus on specific clients, IRS notices, or vendors. What would you like to know?`;
+        return `Hello! I'm your AI assistant. I can help you with tax guidance, financial analysis, document analysis, and professional advice. You can switch contexts to focus on specific clients, vendors, or financial analysis. What would you like to know?`;
     }
   }
 
-  const quickActions = [
+  const quickActions = chatContext.mode === 'financial' ? [
+    { 
+      label: 'Revenue Analysis', 
+      icon: Calculator,
+      prompt: 'Show me the revenue analysis for the current period with month-over-month comparison.'
+    },
+    { 
+      label: 'Unmatched Items', 
+      icon: AlertTriangle,
+      prompt: 'Show me all unmatched items that need attention in reconciliation.'
+    },
+    { 
+      label: 'Pending Accruals', 
+      icon: FileText,
+      prompt: 'List all pending accruals and their current status.'
+    },
+    { 
+      label: 'Flux Analysis', 
+      icon: TrendingUp,
+      prompt: 'Provide a flux analysis showing the largest increases and decreases this period.'
+    },
+  ] : [
     { 
       label: 'Analyze Document', 
       icon: FileText,
@@ -135,42 +160,54 @@ export function AITaxAssistant() {
   }
 
   const getModeLabel = () => {
+    // If a client is selected, show client context regardless of mode
+    if (chatContext.clientId) {
+      const clientName = clients.find(c => c.id === chatContext.clientId)?.name;
+      return clientName ? `Client: ${clientName}` : 'Select Client';
+    }
+    
+    // If a vendor is selected, show vendor context regardless of mode
+    if (chatContext.vendorId) {
+      const vendor = vendors.find(v => v.id === chatContext.vendorId);
+      return vendor ? `Vendor: ${vendor.name}` : 'Select Vendor';
+    }
+    
+    // Default mode labels when no specific context is selected
     switch (chatContext.mode) {
-      case 'client':
-        const clientName = clients.find(c => c.id === chatContext.clientId)?.name;
-        return clientName ? `Client: ${clientName}` : 'Select Client';
-
-      case 'vendor':
-        const vendor = vendors.find(v => v.id === chatContext.vendorId);
-        return vendor ? `Vendor: ${vendor.name}` : 'Select Vendor';
+      case 'financial':
+        return 'Financial Analysis';
       default:
         return 'General Tax Guidance';
     }
   };
 
   const getModeIcon = () => {
+    // If a client is selected, show client icon regardless of mode
+    if (chatContext.clientId) {
+      return <Users2 className="w-4 h-4" />;
+    }
+    
+    // If a vendor is selected, show vendor icon regardless of mode
+    if (chatContext.vendorId) {
+      return <User className="w-4 h-4" />;
+    }
+    
+    // Default mode icons when no specific context is selected
     switch (chatContext.mode) {
-      case 'client':
-        return <Users2 className="w-4 h-4" />;
-
-      case 'vendor':
-        return <User className="w-4 h-4" />;
+      case 'financial':
+        return <TrendingUp className="w-4 h-4" />;
       default:
         return <Sparkles className="w-4 h-4" />;
     }
   };
 
   const handleModeChange = (mode: ChatMode, id?: string) => {
-    const newContext: ChatContext = { mode };
-    
-    switch (mode) {
-      case 'client':
-        newContext.clientId = id;
-        break;
-      case 'vendor':
-        newContext.vendorId = id;
-        break;
-    }
+    const newContext: ChatContext = { 
+      mode,
+      // Preserve existing client/vendor context when switching modes
+      clientId: mode === 'client' ? id : chatContext.clientId,
+      vendorId: mode === 'vendor' ? id : chatContext.vendorId
+    };
     
     setChatContext(newContext);
     setShowModeDropdown(false);
@@ -340,7 +377,7 @@ export function AITaxAssistant() {
 
   return (
     <div className="flex flex-col h-screen bg-gradient-to-br from-surface to-surface-elevated">
-      <TopBar title="AI Tax Assistant" />
+      <TopBar title="AI Assistant" />
 
       {/* Global Search */}
       <GlobalSearch isOpen={isSearchOpen} onClose={closeSearch} />
@@ -354,8 +391,8 @@ export function AITaxAssistant() {
                 <Sparkles className="w-5 h-5 text-primary" />
               </div>
               <div>
-                <h2 className="font-semibold text-text-primary">AI Tax Assistant</h2>
-                <p className="text-sm text-text-tertiary">Multi-context AI guidance for tax professionals</p>
+                              <h2 className="font-semibold text-text-primary">AI Assistant</h2>
+              <p className="text-sm text-text-tertiary">Multi-context AI guidance for tax and financial professionals</p>
               </div>
             </div>
             
@@ -384,7 +421,7 @@ export function AITaxAssistant() {
                         className={cn(
                           "w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors duration-200",
                           chatContext.mode === 'general' 
-                            ? "bg-primary/10 text-primary" 
+                            ? "bg-primary/10 text-text-primary" 
                             : "hover:bg-surface-hover text-text-primary"
                         )}
                       >
@@ -394,6 +431,8 @@ export function AITaxAssistant() {
                           <div className="text-xs text-text-tertiary">General tax questions and advice</div>
                         </div>
                       </button>
+
+
 
                       {/* Client Mode */}
                       <div className="mt-2">
@@ -407,7 +446,7 @@ export function AITaxAssistant() {
                             className={cn(
                               "w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors duration-200",
                               chatContext.mode === 'client' && chatContext.clientId === client.id
-                                ? "bg-primary/10 text-primary" 
+                                ? "bg-primary/10 text-text-primary" 
                                 : "hover:bg-surface-hover text-text-primary"
                             )}
                           >
@@ -435,7 +474,7 @@ export function AITaxAssistant() {
                               className={cn(
                                 "w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors duration-200",
                                 chatContext.mode === 'vendor' && chatContext.vendorId === vendor.id
-                                  ? "bg-primary/10 text-primary" 
+                                  ? "bg-primary/10 text-text-primary" 
                                   : "hover:bg-surface-hover text-text-primary"
                               )}
                             >
@@ -450,6 +489,7 @@ export function AITaxAssistant() {
                           ))}
                         </div>
                       )}
+
                     </div>
                   </div>
                 )}
@@ -694,7 +734,7 @@ export function AITaxAssistant() {
                 {selectedDocuments.map(docId => {
                   const doc = clientDocuments.find(d => d.id === docId);
                   return doc ? (
-                    <div key={docId} className="inline-flex items-center space-x-1 bg-primary/10 text-gray-900 px-2 py-1 rounded-md text-xs font-medium">
+                    <div key={docId} className="inline-flex items-center space-x-1 bg-primary/10 text-text-primary px-2 py-1 rounded-md text-xs font-medium">
                       <FileText className="w-3 h-3" />
                       <span className="truncate max-w-[120px]">{doc.original_filename}</span>
                     </div>
@@ -733,13 +773,41 @@ export function AITaxAssistant() {
               </button>
             </div>
 
+            {/* Financial Analysis Toggle */}
+            <div className="flex-shrink-0">
+              <button
+                onClick={() => {
+                  const newMode = chatContext.mode === 'financial' ? 'general' : 'financial';
+                  const newContext: ChatContext = { 
+                    mode: newMode,
+                    // Preserve existing client/vendor context when switching modes
+                    clientId: chatContext.clientId,
+                    vendorId: chatContext.vendorId
+                  };
+                  setChatContext(newContext);
+                }}
+                className={cn(
+                  "group relative h-12 px-4 rounded-xl border transition-all duration-200 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-primary/20",
+                  chatContext.mode === 'financial'
+                    ? "bg-primary/10 border-primary/30 text-text-primary shadow-soft"
+                    : "bg-surface-elevated border-border-subtle hover:border-primary/50 hover:bg-primary/5 text-text-secondary hover:text-text-primary"
+                )}
+                title={chatContext.mode === 'financial' ? "Switch back to Tax mode" : "Switch to Financial Analysis mode"}
+              >
+                <TrendingUp className="w-5 h-5 mr-2" />
+                <span className="text-sm font-medium">
+                  {chatContext.mode === 'financial' ? 'Tax Mode' : 'Financial'}
+                </span>
+              </button>
+            </div>
+
             {/* Text Input */}
             <div className="flex-1 relative">
               <textarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyPress={handleKeyPress}
-                placeholder={`Ask about ${chatContext.mode === 'general' ? 'tax questions' : getModeLabel().toLowerCase()}...`}
+                placeholder={`Ask about ${chatContext.mode === 'financial' ? 'financial analysis' : 'tax questions'}...`}
                 className="w-full resize-none rounded-xl border border-border-subtle px-4 py-3 bg-surface-elevated text-text-primary placeholder-text-tertiary focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/30 transition-all duration-200 disabled:opacity-50 pr-12 min-h-[48px]"
                 rows={1}
                 style={{ maxHeight: '120px' }}
@@ -803,7 +871,7 @@ export function AITaxAssistant() {
             </div>
             <div className="flex items-center space-x-4 text-xs text-text-tertiary">
               <Badge variant="neutral" size="sm" className="capitalize">
-                {chatContext.mode === 'general' ? 'General Mode' : `${chatContext.mode} Mode`}
+                {chatContext.mode === 'financial' ? 'Financial Mode' : 'Tax Mode'}
               </Badge>
               <span className="flex items-center space-x-1">
                 <div className={`w-2 h-2 rounded-full transition-colors duration-200 ${

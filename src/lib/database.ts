@@ -286,16 +286,23 @@ export const documentsApi = {
 
 // Vendor operations
 export const vendorsApi = {
-  async getAll(): Promise<Vendor[]> {
+  async getAll(clientId?: string): Promise<Vendor[]> {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('User not authenticated');
-    
-    const { data, error } = await supabase
+
+    let query = supabase
       .from('vendors')
       .select('*')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false });
-    
+
+    // Filter by client if specified
+    if (clientId) {
+      query = query.eq('client_id', clientId);
+    }
+
+    const { data, error } = await query;
+
     if (error) throw error;
     return data || [];
   },

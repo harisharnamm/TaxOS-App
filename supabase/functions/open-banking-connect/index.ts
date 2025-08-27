@@ -98,6 +98,7 @@ serve(async (req) => {
       webhookContentType: "application/json",
       email: {
         to: emailTo,
+        from: "banking@taxos.space",
         supportPhone: body?.email?.supportPhone,
         subject: body?.email?.subject || "Please link your bank account",
         firstName,
@@ -115,6 +116,8 @@ serve(async (req) => {
     if (webhookData) payload.webhookData = webhookData;
     if (webhookHeaders) payload.webhookHeaders = webhookHeaders;
     if (institutionSettings) payload.institutionSettings = institutionSettings;
+
+    console.log("connect send/email payload.email", payload.email);
 
     const res = await fetch(url, {
       method: "POST",

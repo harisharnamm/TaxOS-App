@@ -32,6 +32,24 @@ type WebhookEvent = {
   webhookData?: any;
 };
 
+// TxPush transaction event type
+type TxPushEvent = {
+  customerId: string;
+  accountId: string;
+  eventType: 'transaction_created' | 'transaction_updated' | 'transaction_deleted';
+  transaction: {
+    id: string;
+    amount: number;
+    description: string;
+    postedDate: number;
+    transactionDate: number;
+    categorization?: {
+      category?: string;
+      normalizedPayeeName?: string;
+    };
+  };
+};
+
 // Process webhook events based on Finicity documentation
 async function processWebhookEvent(event: WebhookEvent, headers: Record<string, string>) {
   try {
@@ -233,6 +251,19 @@ async function handleSpecificEvent(event: WebhookEvent) {
       await updateCustomerStatus(customerId, 'pending', payload);
       break;
       
+    case 'transaction_created':
+    case 'transaction_updated':
+      // TxPush transaction event - process in real-time
+      console.log(`TxPush ${eventType} for customer ${customerId}:`, payload);
+      await processTxPushTransaction(customerId, payload);
+      break;
+      
+    case 'transaction_deleted':
+      // Handle transaction deletion
+      console.log(`TxPush transaction deleted for customer ${customerId}:`, payload);
+      await handleTransactionDeletion(customerId, payload);
+      break;
+      
     default:
       console.log(`Unknown event type: ${eventType} for customer ${customerId}`);
   }
@@ -275,6 +306,252 @@ async function updateCustomerStatus(customerId: string, status: string, payload:
     }
   } catch (error) {
     console.error('Error updating customer status:', error);
+  }
+}
+
+// Process TxPush transaction events in real-time
+async function processTxPushTransaction(customerId: string, payload: any) {
+  try {
+    console.log(`🚀 REAL-TIME: Processing TxPush transaction for customer ${customerId}:`, payload);
+    
+    // Find the customer mapping to get platform client ID
+    const { data: customerMapping, error: findError } = await supabase
+      .from('open_banking_customers')
+      .select('platform_client_id, finicity_customer_id')
+      .eq('finicity_customer_id', customerId)
+      .single();
+    
+    if (findError || !customerMapping) {
+      console.error('Error finding customer mapping:', findError);
+      return;
+    }
+    
+    const { platform_client_id, finicity_customer_id } = customerMapping;
+    
+    // Find the account mapping
+    const { data: accountMapping, error: accountError } = await supabase
+      .from('open_banking_accounts')
+      .select('id, name, type')
+      .eq('finicity_customer_id', finicity_customer_id)
+      .eq('id', payload.accountId)
+      .single();
+    
+    if (accountError || !accountMapping) {
+      console.error('Error finding account mapping:', accountError);
+      return;
+    }
+    
+    // Prepare transaction data with enhanced fields
+    const transactionData = {
+      tx_id_ext: payload.transaction.id,
+      user_id: platform_client_id,
+      client_id: platform_client_id,
+      account_id: accountMapping.id,
+      date_posted: new Date(payload.transaction.postedDate * 1000).toISOString().split('T')[0],
+      amount: payload.transaction.amount,
+      raw_description: payload.transaction.description,
+      normalized_merchant: payload.transaction.categorization?.normalizedPayeeName || null,
+      status: 'for_review',
+      category_suggested: payload.transaction.categorization?.category || null,
+      payee_suggested: payload.transaction.categorization?.normalizedPayeeName || null,
+      confidence: 0.8, // Finicity base confidence
+      enrichment_source: 'finicity_base', // Mark as Finicity base categorization
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    
+    console.log(`📝 Inserting real-time transaction:`, transactionData);
+    
+    // Insert the transaction
+    const { data: insertedTx, error: insertError } = await supabase
+      .from('transactions')
+      .upsert(transactionData, {
+        onConflict: 'tx_id_ext'
+      })
+      .select()
+      .single();
+    
+    if (insertError) {
+      console.error('Error inserting TxPush transaction:', insertError);
+      return;
+    }
+    
+    console.log(`✅ Successfully processed TxPush transaction ${payload.transaction.id} in real-time`);
+    
+    // 🚀 IMMEDIATE AI ENHANCEMENT: Automatically enhance the transaction
+    console.log(`🤖 Starting immediate AI enhancement for transaction ${insertedTx.id}`);
+    await enhanceTransactionWithAI(insertedTx.id, transactionData);
+    
+    // 🎯 BROADCAST REAL-TIME UPDATE: Notify any connected clients
+    await broadcastTransactionUpdate(insertedTx.id, 'created');
+    
+  } catch (error) {
+    console.error('Error processing TxPush transaction:', error);
+  }
+}
+
+// Handle transaction deletion
+async function handleTransactionDeletion(customerId: string, payload: any) {
+  try {
+    console.log(`Handling transaction deletion for customer ${customerId}:`, payload);
+    
+    // Mark transaction as deleted or remove it
+    const { error: deleteError } = await supabase
+      .from('transactions')
+      .delete()
+      .eq('tx_id_ext', payload.transaction.id);
+    
+    if (deleteError) {
+      console.error('Error deleting transaction:', deleteError);
+    } else {
+      console.log(`Successfully deleted transaction ${payload.transaction.id}`);
+    }
+    
+  } catch (error) {
+    console.error('Error handling transaction deletion:', error);
+  }
+}
+
+// Enhance transaction with AI using our data enrichment API
+async function enhanceTransactionWithAI(transactionId: string, transactionData: any) {
+  try {
+    console.log(`🤖 Starting AI enhancement for transaction ${transactionId}`);
+    
+    // Call our data enrichment API
+    const enrichmentResponse = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/data-enrichment`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
+      },
+      body: JSON.stringify({
+        action: 'enrich_transactions',
+        transactionIds: [transactionId]
+      })
+    });
+    
+    if (enrichmentResponse.ok) {
+      const result = await enrichmentResponse.json();
+      console.log(`✅ Transaction ${transactionId} enhanced successfully:`, result);
+      
+      // Update the transaction with enrichment results
+      if (result.success && result.updated > 0) {
+        await updateTransactionWithEnrichment(transactionId, result);
+        
+        // 🎯 BROADCAST ENHANCEMENT COMPLETE: Notify clients of AI enhancement
+        await broadcastTransactionUpdate(transactionId, 'enhanced');
+      }
+    } else {
+      console.error(`❌ Failed to enhance transaction ${transactionId}:`, enrichmentResponse.statusText);
+    }
+    
+  } catch (error) {
+    console.error('Error enhancing transaction with AI:', error);
+  }
+}
+
+// Update transaction with enrichment results
+async function updateTransactionWithEnrichment(transactionId: string, enrichmentResult: any) {
+  try {
+    console.log(`🔄 Updating transaction ${transactionId} with enrichment results`);
+    
+    // Get the enhanced transaction data
+    const { data: enhancedTx, error: fetchError } = await supabase
+      .from('transactions')
+      .select('*')
+      .eq('id', transactionId)
+      .single();
+    
+    if (fetchError || !enhancedTx) {
+      console.error('Error fetching enhanced transaction:', fetchError);
+      return;
+    }
+    
+    // Calculate the highest confidence score
+    const finicityConfidence = enhancedTx.confidence || 0.8;
+    const aiConfidence = enhancedTx.category_confidence || 0;
+    const highestConfidence = Math.max(finicityConfidence, aiConfidence);
+    
+    console.log(`📊 Confidence scores - Finicity: ${finicityConfidence}, AI: ${aiConfidence}, Highest: ${highestConfidence}`);
+    
+    // Update with the highest confidence and enrichment source
+    const { error: updateError } = await supabase
+      .from('transactions')
+      .update({
+        confidence: highestConfidence,
+        enrichment_source: 'mastercard_data_enrichment',
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', transactionId);
+    
+    if (updateError) {
+      console.error('Error updating transaction with enrichment:', updateError);
+    } else {
+      console.log(`✅ Transaction ${transactionId} updated with highest confidence: ${highestConfidence}`);
+    }
+    
+  } catch (error) {
+    console.error('Error updating transaction with enrichment:', error);
+  }
+}
+
+// 🚀 BROADCAST REAL-TIME UPDATES: Notify connected clients of transaction changes
+async function broadcastTransactionUpdate(transactionId: string, updateType: 'created' | 'enhanced' | 'updated') {
+  try {
+    console.log(`📡 Broadcasting ${updateType} update for transaction ${transactionId}`);
+    
+    // Get the full transaction data for broadcasting
+    const { data: transaction, error: fetchError } = await supabase
+      .from('transactions')
+      .select(`
+        *,
+        open_banking_accounts!inner(
+          name,
+          type
+        )
+      `)
+      .eq('id', transactionId)
+      .single();
+    
+    if (fetchError || !transaction) {
+      console.error('Error fetching transaction for broadcast:', fetchError);
+      return;
+    }
+    
+    // Create a real-time event payload
+    const realtimeEvent = {
+      type: `transaction_${updateType}`,
+      transaction_id: transactionId,
+      data: {
+        ...transaction,
+        account_name: transaction.open_banking_accounts?.name,
+        account_type: transaction.open_banking_accounts?.type
+      },
+      timestamp: new Date().toISOString(),
+      source: 'txpush_webhook'
+    };
+    
+    console.log(`📡 Broadcasting real-time event:`, realtimeEvent);
+    
+    // Store the real-time event for clients to poll (we'll implement WebSocket later)
+    const { error: storeError } = await supabase
+      .from('realtime_events')
+      .insert({
+        event_type: realtimeEvent.type,
+        transaction_id: transactionId,
+        payload: realtimeEvent,
+        created_at: new Date().toISOString()
+      });
+    
+    if (storeError) {
+      console.warn('Could not store real-time event (table may not exist):', storeError);
+      // This is okay - we'll create the table in the next step
+    }
+    
+    console.log(`✅ Real-time update broadcasted for transaction ${transactionId}`);
+    
+  } catch (error) {
+    console.error('Error broadcasting real-time update:', error);
   }
 }
 

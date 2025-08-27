@@ -1,6 +1,7 @@
 import { useAuthContext } from '../../contexts/AuthContext';
 import { useSidebar } from '../../contexts/SidebarContext';
 import { NavigationItem } from '../molecules/NavigationItem';
+import { useState } from 'react';
 import { 
   LayoutDashboard, 
   Users2,
@@ -10,10 +11,14 @@ import {
   CheckSquare,
   AlertTriangle, 
   MessageSquare as ChatIcon, 
-  Settings,
+ Settings,
   Sparkles,
   X,
-  Search as SearchIcon
+  Search as SearchIcon,
+  Banknote,
+  Link,
+  ChevronDown,
+  TrendingUp
 } from 'lucide-react';
 
 
@@ -24,7 +29,8 @@ interface SidebarProps {
 
 export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   const { profile, signOut } = useAuthContext();
-  const { closeSidebar } = useSidebar();
+  const { closeSidebar, toggleSidebar } = useSidebar();
+  const [bookkeepingExpanded, setBookkeepingExpanded] = useState(true);
   
   const handleSignOut = async () => {
     await signOut();
@@ -62,8 +68,8 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
           </button>
         )}
 
-        {/* Logo */}
-        <div className="flex items-center px-6 sm:px-8 py-6 sm:py-8">
+        {/* Logo - Fixed at top */}
+        <div className="flex-shrink-0 flex items-center px-6 sm:px-8 py-6 sm:py-8">
           <div className="flex items-center space-x-3">
             <div className="p-2 bg-primary rounded-xl shadow-soft">
               <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-gray-900" />
@@ -75,39 +81,75 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
           </div>
         </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 px-4 sm:px-6 space-y-1">
-          <NavigationItem to="/" icon={LayoutDashboard}>
-            Dashboard
-          </NavigationItem>
-          <NavigationItem to="/clients" icon={Users2}>
-            Clients
-          </NavigationItem>
-          <NavigationItem to="/tasks" icon={CheckSquare}>
-            Tasks
-          </NavigationItem>
-          <NavigationItem to="/my-zone" icon={GraduationCap}>
-            My Zone
-          </NavigationItem>
-          <NavigationItem to="/irs-notices" icon={FileText}>
-            Document Management
-          </NavigationItem>
-          <NavigationItem to="/client-communications" icon={MessageSquareIcon}>
-            Client Communications
-          </NavigationItem>
-          <NavigationItem to="/deduction-chat" icon={ChatIcon}>
-            Deduction Chat
-          </NavigationItem>
-          <NavigationItem to="/settings" icon={Settings}>
-            Settings
-          </NavigationItem>
-        </nav>
+        {/* Navigation - Scrollable area */}
+        <div className="flex-1 overflow-y-auto">
+          <nav className="px-4 sm:px-6 space-y-1 py-2">
+            <NavigationItem to="/" icon={LayoutDashboard}>
+              Dashboard
+            </NavigationItem>
+            <NavigationItem to="/clients" icon={Users2}>
+              Clients
+            </NavigationItem>
+            <NavigationItem to="/tasks" icon={CheckSquare}>
+              Tasks
+            </NavigationItem>
+            {/* Bookkeeping Group */}
+            <div className="space-y-1 mb-4">
+              <div className="px-3 py-2">
+                <button
+                  onClick={() => setBookkeepingExpanded(!bookkeepingExpanded)}
+                  className="flex items-center justify-between w-full text-sm font-medium text-text-secondary uppercase tracking-wider hover:text-text-primary transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <Banknote className="h-4 w-4" />
+                    Bookkeeping
+                  </div>
+                  <ChevronDown className={`h-4 w-4 transition-transform ${bookkeepingExpanded ? 'rotate-180' : ''}`} />
+                </button>
+              </div>
 
-        {/* Search Shortcut */}
-        {/* Search button removed to fix error */}
+              {bookkeepingExpanded && (
+                <div className="ml-4 space-y-1">
+                  <NavigationItem to="/transactions" icon={LayoutDashboard}>
+                    Overview
+                  </NavigationItem>
 
-        {/* User Avatar */}
-        <div className="p-4 sm:p-6 border-t border-border-subtle bg-gradient-to-r from-surface to-surface-elevated">
+                  <NavigationItem to="/vendors" icon={Users2}>
+                    Vendors
+                  </NavigationItem>
+
+                  <NavigationItem to="/transaction-matching" icon={Link}>
+                    Transaction Matching
+                  </NavigationItem>
+                  <NavigationItem to="/workpapers" icon={CheckSquare}>
+                    Workpapers
+                  </NavigationItem>
+                  <NavigationItem to="/transactions/analytics" icon={TrendingUp}>
+                    Flux Analysis
+                  </NavigationItem>
+                </div>
+              )}
+            </div>
+            <NavigationItem to="/my-zone" icon={GraduationCap}>
+              My Zone
+            </NavigationItem>
+            <NavigationItem to="/irs-notices" icon={FileText}>
+              Document Management
+            </NavigationItem>
+            <NavigationItem to="/client-communications" icon={MessageSquareIcon}>
+              Client Communications
+            </NavigationItem>
+            <NavigationItem to="/ai-assistant" icon={ChatIcon}>
+              AI Assistant
+            </NavigationItem>
+            <NavigationItem to="/settings" icon={Settings}>
+              Settings
+            </NavigationItem>
+          </nav>
+        </div>
+
+        {/* User Avatar - Fixed at bottom */}
+        <div className="flex-shrink-0 p-4 sm:p-6 border-t border-border-subtle bg-gradient-to-r from-surface to-surface-elevated">
           <div className="flex items-center space-x-3 p-3 rounded-xl bg-surface-elevated border border-border-subtle hover:shadow-soft transition-all duration-200 group">
             <div className="w-8 h-8 sm:w-10 sm:h-10 bg-primary rounded-xl flex items-center justify-center shadow-soft">
               <span className="text-xs sm:text-sm font-semibold text-gray-900">{initials}</span>
