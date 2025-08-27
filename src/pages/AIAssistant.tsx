@@ -5,7 +5,7 @@ import { GlobalSearch } from '../components/molecules/GlobalSearch';
 import { useSearch } from '../contexts/SearchContext';
 import { Button } from '../components/atoms/Button';
 import { Badge } from '../components/atoms/Badge';
-import { Send, FileText, Calculator, Trash2, RefreshCw, Paperclip, X, Users2, AlertTriangle, User, ChevronDown, TrendingUp } from 'lucide-react';
+import { Send, Sparkles, FileText, Calculator, Trash2, RefreshCw, Paperclip, X, Users2, AlertTriangle, User, ChevronDown, TrendingUp } from 'lucide-react';
 import { useChat } from '../hooks/useChat';
 import { useClients } from '../hooks/useClients';
 import { useVendors } from '../hooks/useVendors';
