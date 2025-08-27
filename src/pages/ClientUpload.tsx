@@ -324,7 +324,7 @@ const ClientUpload: React.FC = () => {
 
         {/* Footer */}
         <div className="mt-8 text-center text-sm text-gray-500">
-          <p>This is a secure document upload portal for TaxOS</p>
+          <p>This is a secure document upload portal for Taxos</p>
           <p>If you have any questions, please contact your tax professional</p>
         </div>
       </div>

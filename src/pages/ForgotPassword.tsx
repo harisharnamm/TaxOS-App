@@ -1,11 +1,16 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Sparkles, Mail, ArrowLeft, CheckCircle } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Mail, ArrowLeft, CheckCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { Button } from '../components/atoms/Button';
+
+// Import GlassInputWrapper from sign-in component
+const GlassInputWrapper = ({ children }: { children: React.ReactNode }) => (
+  <div className="rounded-2xl border border-border bg-foreground/5 backdrop-blur-sm transition-colors focus-within:border-violet-400/70 focus-within:bg-violet-500/10">
+    {children}
+  </div>
+);
 
 export function ForgotPassword() {
-  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -33,234 +38,202 @@ export function ForgotPassword() {
     }
   };
 
-  if (emailSent) {
-    return (
-      <div className="min-h-screen flex flex-col lg:flex-row">
-        {/* Left Panel - Success Message */}
-        <div className="flex-1 bg-gray-900 flex items-center justify-center p-4 sm:p-6 lg:p-8">
-          <div className="w-full max-w-md text-center space-y-6 sm:space-y-8">
-            {/* Logo */}
-            <div className="flex items-center justify-center space-x-3 mb-6 sm:mb-8">
-              <div className="p-2 sm:p-3 bg-primary rounded-xl shadow-soft">
-                <Sparkles className="w-6 h-6 sm:w-8 sm:h-8 text-gray-900" />
-              </div>
-              <div>
-                <span className="text-xl sm:text-2xl font-bold text-white tracking-tight">TaxOS</span>
-                <p className="text-xs sm:text-sm text-gray-400 font-medium">by Nurahex</p>
-              </div>
-            </div>
 
-            {/* Success Icon */}
-            <div className="w-16 h-16 sm:w-20 sm:h-20 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-4 sm:mb-6">
-              <div className="w-8 h-8 sm:w-10 sm:h-10 bg-emerald-500 rounded-full flex items-center justify-center">
-                <CheckCircle className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+
+  return (
+    <div className="min-h-screen flex flex-col md:flex-row bg-white">
+      {/* Left Panel - Form */}
+      <div className="flex-1 flex items-center justify-center p-8 relative">
+        {/* Logo Overlay */}
+        <div className="absolute top-8 left-8 z-10">
+          <img
+            src="/taxos-logo.png"
+            alt="Taxos"
+            className="h-10 w-auto"
+          />
+        </div>
+
+        {/* Error Messages */}
+        {error && (
+          <div className="absolute top-8 right-8 z-10 max-w-md">
+            <div className="bg-red-50 border border-red-200 rounded-xl p-3">
+              <p className="text-red-800 text-sm">{error}</p>
+            </div>
+          </div>
+        )}
+
+        <div className="w-full max-w-md space-y-6 pt-16">
+          {emailSent ? (
+            /* Success Message */
+            <div className="text-center space-y-6">
+                          {/* Success Icon */}
+            <div className="animate-element animate-delay-100 w-20 h-20 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
+              <div className="w-12 h-12 bg-emerald-500 rounded-full flex items-center justify-center">
+                <CheckCircle className="w-6 h-6 text-white" />
               </div>
             </div>
 
             {/* Message */}
-            <div className="space-y-3 sm:space-y-4">
-              <h1 className="text-2xl sm:text-3xl font-bold text-white">Check your email</h1>
-              <p className="text-gray-400 text-base sm:text-lg leading-relaxed">
+            <div className="animate-element animate-delay-200 space-y-4">
+              <h1 className="text-3xl font-bold text-gray-900">Check your email</h1>
+              <p className="text-gray-700 text-lg leading-relaxed">
                 We've sent a password reset link to your email address.
               </p>
-              <p className="text-gray-500 text-xs sm:text-sm">
-                We sent the link to <span className="text-primary font-medium">{email}</span>
+              <p className="text-gray-600 text-sm">
+                We sent the link to <span className="text-violet-400 font-medium">{email}</span>
               </p>
             </div>
 
             {/* Instructions */}
-            <div className="bg-gray-800 rounded-xl p-4 sm:p-6 text-left">
-              <h3 className="font-semibold text-white mb-3">Next steps:</h3>
-              <ol className="space-y-2 text-sm text-gray-300">
-                <li className="flex items-start space-x-2">
-                  <span className="text-primary font-bold">1.</span>
+            <div className="animate-element animate-delay-300 bg-white/50 backdrop-blur-sm rounded-2xl p-6 border border-gray-200">
+              <h3 className="font-semibold text-gray-900 mb-4">Next steps:</h3>
+              <ol className="space-y-3 text-sm text-gray-700">
+                <li className="flex items-start space-x-3">
+                  <span className="text-violet-400 font-bold bg-violet-50 rounded-full w-5 h-5 flex items-center justify-center text-xs">1</span>
                   <span>Check your email inbox (and spam folder)</span>
                 </li>
-                <li className="flex items-start space-x-2">
-                  <span className="text-primary font-bold">2.</span>
+                <li className="flex items-start space-x-3">
+                  <span className="text-violet-400 font-bold bg-violet-50 rounded-full w-5 h-5 flex items-center justify-center text-xs">2</span>
                   <span>Click the reset password link</span>
                 </li>
-                <li className="flex items-start space-x-2">
-                  <span className="text-primary font-bold">3.</span>
+                <li className="flex items-start space-x-3">
+                  <span className="text-violet-400 font-bold bg-violet-50 rounded-full w-5 h-5 flex items-center justify-center text-xs">3</span>
                   <span>Create a new secure password</span>
                 </li>
               </ol>
             </div>
 
             {/* Back to sign in */}
-            <div className="pt-4">
+            <div className="animate-element animate-delay-400 pt-4">
               <Link
                 to="/signin"
-                className="inline-flex items-center space-x-2 text-sm text-primary hover:text-primary-hover font-semibold transition-colors duration-200"
+                className="text-violet-400 hover:text-violet-300 font-semibold transition-colors duration-200 inline-flex items-center space-x-2"
               >
                 <ArrowLeft className="w-4 h-4" />
                 <span>Back to sign in</span>
               </Link>
             </div>
-          </div>
-        </div>
-
-        {/* Right Panel - Background */}
-        <div className="hidden lg:flex flex-1 relative overflow-hidden">
-          <div 
-            className="absolute inset-0 bg-cover bg-center bg-no-repeat"
-            style={{
-              backgroundImage: `url('https://images.pexels.com/photos/32489809/pexels-photo-32489809.jpeg?_gl=1*j7c3pm*_ga*NDg0MTc4NzYzLjE3NDg1OTk1MTM.*_ga_8JE65Q40S6*czE3NTExMTMyNTUkbzMkZzEkdDE3NTExMTMyNzgkajM3JGwwJGgw')`
-            }}
-          />
-          {/* Blur overlay for better text readability */}
-          <div className="absolute inset-0 backdrop-blur-[1px]" />
-          <div className="absolute inset-0 bg-gradient-to-br from-black/20 to-black/40" />
-          
-          {/* Content Overlay */}
-          <div className="relative h-full flex flex-col justify-center items-center p-8 xl:p-12 text-white">
-            <div className="text-center max-w-lg">
-              <h2 className="text-3xl xl:text-4xl font-bold mb-6 leading-tight">
-                Secure password recovery
-              </h2>
-              <p className="text-lg xl:text-xl text-white/90 leading-relaxed">
-                We take your account security seriously. Follow the link in your email to safely reset your password.
-              </p>
             </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="min-h-screen flex flex-col lg:flex-row">
-      {/* Left Panel - Form */}
-      <div className="flex-1 bg-gray-900 flex items-center justify-center p-4 sm:p-6 lg:p-8">
-        <div className="w-full max-w-md space-y-6 sm:space-y-8">
-          {/* Logo */}
-          <div className="text-center">
-            <div className="flex items-center justify-center space-x-3 mb-6 sm:mb-8">
-              <div className="p-2 sm:p-3 bg-primary rounded-xl shadow-soft">
-                <Sparkles className="w-6 h-6 sm:w-8 sm:h-8 text-gray-900" />
+          ) : (
+            /* Form */
+            <>
+              {/* Header */}
+              <div className="animate-element animate-delay-100 text-center">
+                <h1 className="text-4xl font-semibold leading-tight text-gray-900 mb-2">
+                  Forgot your password?
+                </h1>
+                <p className="text-gray-700">
+                  Enter your email address and we'll send you a link to reset your password.
+                </p>
               </div>
-              <div>
-                <span className="text-xl sm:text-2xl font-bold text-white tracking-tight">TaxOS</span>
-                <p className="text-xs sm:text-sm text-gray-400 font-medium">by Nurahex</p>
+
+              {/* Form */}
+              <form onSubmit={handleSubmit} className="space-y-5">
+                {/* Email Input */}
+                <div className="animate-element animate-delay-200">
+                  <label className="text-sm font-medium text-muted-foreground mb-2 block">Email Address</label>
+                  <GlassInputWrapper>
+                    <div className="relative">
+                      <Mail className="absolute left-4 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <input
+                        type="email"
+                        placeholder="Enter your email address"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="w-full bg-transparent text-sm p-4 pl-12 rounded-2xl focus:outline-none"
+                        required
+                      />
+                    </div>
+                  </GlassInputWrapper>
+                </div>
+
+                {/* Submit Button */}
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="animate-element animate-delay-300 w-full rounded-2xl bg-primary py-4 font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+                >
+                  {isLoading ? 'Sending reset link...' : 'Send Reset Link'}
+                </button>
+              </form>
+
+              {/* Footer */}
+              <div className="animate-element animate-delay-400 text-center">
+                <Link
+                  to="/signin"
+                  className="text-violet-400 hover:text-violet-300 font-semibold transition-colors duration-200 inline-flex items-center space-x-2"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  <span>Back to sign in</span>
+                </Link>
               </div>
-            </div>
-          </div>
-
-          {/* Header */}
-          <div className="text-center">
-            <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">Forgot your password?</h1>
-            <p className="text-sm sm:text-base text-gray-400">
-              Enter your email address and we'll send you a link to reset your password.
-            </p>
-          </div>
-
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
-            {error && (
-              <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 sm:p-4">
-                <p className="text-red-400 text-xs sm:text-sm">{error}</p>
-              </div>
-            )}
-            
-            <div className="space-y-3 sm:space-y-4">
-              <div className="relative">
-                <Mail className="absolute left-3 sm:left-4 top-1/2 transform -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
-                <input
-                  type="email"
-                  placeholder="Enter your email address"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-10 sm:pl-12 pr-3 sm:pr-4 py-3 sm:py-4 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all duration-200 text-sm sm:text-base"
-                  required
-                />
-              </div>
-            </div>
-
-            <Button
-              type="submit"
-              className="w-full py-3 sm:py-4 text-base sm:text-lg font-semibold"
-              disabled={isLoading}
-            >
-              {isLoading ? 'Sending reset link...' : 'Send Reset Link'}
-            </Button>
-          </form>
-
-          {/* Footer */}
-          <div className="text-center">
-            <Link
-              to="/signin"
-              className="inline-flex items-center space-x-2 text-sm text-primary hover:text-primary-hover font-semibold transition-colors duration-200"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <span>Back to sign in</span>
-            </Link>
-          </div>
-
-          {/* Terms */}
-          <div className="text-center">
-            <p className="text-xs text-gray-500 leading-relaxed">
-              By using our password reset service, you agree to our{' '}
-              <Link to="/terms" className="text-primary hover:text-primary-hover transition-colors duration-200">
-                Terms of Service
-              </Link>{' '}
-              and{' '}
-              <Link to="/privacy" className="text-primary hover:text-primary-hover transition-colors duration-200">
-                Privacy Policy
-              </Link>
-            </p>
-          </div>
+            </>
+          )}
         </div>
       </div>
 
-      {/* Right Panel - Background */}
-      <div className="hidden lg:flex flex-1 relative overflow-hidden">
-        <div 
-          className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+      {/* Right Panel - Hero Image */}
+      <div className="hidden md:block flex-1 relative overflow-hidden p-4">
+        <div
+          className="absolute inset-4 bg-cover bg-center bg-no-repeat rounded-3xl"
           style={{
             backgroundImage: `url('https://images.pexels.com/photos/32489809/pexels-photo-32489809.jpeg?_gl=1*j7c3pm*_ga*NDg0MTc4NzYzLjE3NDg1OTk1MTM.*_ga_8JE65Q40S6*czE3NTExMTMyNTUkbzMkZzEkdDE3NTExMTMyNzgkajM3JGwwJGgw')`
           }}
         />
         {/* Blur overlay for better text readability */}
-        <div className="absolute inset-0 backdrop-blur-[1px]" />
-        <div className="absolute inset-0 bg-gradient-to-br from-black/20 to-black/40" />
-        
+        <div className="absolute inset-4 backdrop-blur-[1px] rounded-3xl" />
+        <div className="absolute inset-4 bg-gradient-to-br from-black/20 to-black/40 rounded-3xl" />
+
         {/* Content Overlay */}
-        <div className="relative h-full flex flex-col justify-between p-8 xl:p-12 text-white">
-          <div className="flex-1 flex flex-col justify-center">
+        <div className="absolute inset-4 rounded-3xl flex flex-col justify-between p-8 xl:p-12 text-white">
+          {/* Main content section */}
+          <div className="flex-1 flex items-center justify-center">
             <div className="max-w-lg">
-              <h2 className="text-3xl xl:text-4xl font-bold mb-6 leading-tight">
+              <h2 className="text-3xl xl:text-4xl font-bold mb-6 leading-tight text-white">
                 Secure account recovery
               </h2>
-              <p className="text-lg xl:text-xl text-white/90 leading-relaxed">
+              <p className="text-lg xl:text-xl text-white/90 leading-relaxed mb-8">
                 Reset your password securely and get back to managing your tax workflow with confidence.
               </p>
-            </div>
-          </div>
-          
-          {/* Security Features */}
-          <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 xl:p-6 border border-white/20">
-            <div className="flex items-center space-x-4 mb-4">
-              <div className="p-2 bg-primary rounded-lg">
-                <CheckCircle className="w-5 h-5 text-gray-900" />
-              </div>
-              <span className="text-white/90 font-medium text-sm xl:text-base">Secure Password Reset</span>
-            </div>
-            <div className="space-y-2 text-sm xl:text-base">
-              <div className="flex items-center space-x-3">
-                <div className="w-1.5 h-1.5 bg-primary rounded-full"></div>
-                <span className="text-white/80">Encrypted email delivery</span>
-              </div>
-              <div className="flex items-center space-x-3">
-                <div className="w-1.5 h-1.5 bg-primary rounded-full"></div>
-                <span className="text-white/80">Time-limited reset links</span>
-              </div>
-              <div className="flex items-center space-x-3">
-                <div className="w-1.5 h-1.5 bg-primary rounded-full"></div>
-                <span className="text-white/80">Account security verification</span>
+
+              {/* Security Features - moved closer */}
+              <div className="space-y-4">
+                <div className="flex items-center space-x-3">
+                  <div className="w-6 h-6 bg-primary rounded-full flex items-center justify-center">
+                    <CheckCircle className="w-4 h-4 text-gray-900" />
+                  </div>
+                  <span className="text-white/90 text-base">Encrypted email delivery</span>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <div className="w-6 h-6 bg-primary rounded-full flex items-center justify-center">
+                    <CheckCircle className="w-4 h-4 text-gray-900" />
+                  </div>
+                  <span className="text-white/90 text-base">Time-limited reset links</span>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <div className="w-6 h-6 bg-primary rounded-full flex items-center justify-center">
+                    <CheckCircle className="w-4 h-4 text-gray-900" />
+                  </div>
+                  <span className="text-white/90 text-base">Account security verification</span>
+                </div>
               </div>
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Terms Footer */}
+      <div className="absolute bottom-4 left-8 z-10">
+        <p className="text-xs text-gray-600 leading-relaxed">
+          By using our password reset service, you agree to our{' '}
+          <Link to="/terms" className="text-violet-400 hover:text-violet-300 transition-colors duration-200">
+            Terms of Service
+          </Link>{' '}
+          and{' '}
+          <Link to="/privacy" className="text-violet-400 hover:text-violet-300 transition-colors duration-200">
+            Privacy Policy
+          </Link>
+        </p>
       </div>
     </div>
   );

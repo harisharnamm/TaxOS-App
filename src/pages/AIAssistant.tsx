@@ -5,7 +5,7 @@ import { GlobalSearch } from '../components/molecules/GlobalSearch';
 import { useSearch } from '../contexts/SearchContext';
 import { Button } from '../components/atoms/Button';
 import { Badge } from '../components/atoms/Badge';
-import { Send, Sparkles, FileText, Calculator, Trash2, RefreshCw, Paperclip, X, Users2, AlertTriangle, User, ChevronDown, TrendingUp } from 'lucide-react';
+import { Send, FileText, Calculator, Trash2, RefreshCw, Paperclip, X, Users2, AlertTriangle, User, ChevronDown, TrendingUp } from 'lucide-react';
 import { useChat } from '../hooks/useChat';
 import { useClients } from '../hooks/useClients';
 import { useVendors } from '../hooks/useVendors';
@@ -127,7 +127,7 @@ export function AIAssistant() {
     },
     { 
       label: 'Tax Guidance', 
-      icon: Sparkles,
+      icon: FileText,
       prompt: getContextualPrompt('guidance')
     },
   ];
@@ -197,7 +197,7 @@ export function AIAssistant() {
       case 'financial':
         return <TrendingUp className="w-4 h-4" />;
       default:
-        return <Sparkles className="w-4 h-4" />;
+        return <FileText className="w-4 h-4" />;
     }
   };
 
@@ -388,7 +388,11 @@ export function AIAssistant() {
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <div className="p-2 bg-gradient-to-br from-primary/10 to-primary/5 rounded-xl">
-                <Sparkles className="w-5 h-5 text-primary" />
+                <img 
+                  src="/taxos-logo.png" 
+                  alt="Taxos" 
+                  className="w-5 h-5"
+                />
               </div>
               <div>
                               <h2 className="font-semibold text-text-primary">AI Assistant</h2>
@@ -425,7 +429,7 @@ export function AIAssistant() {
                             : "hover:bg-surface-hover text-text-primary"
                         )}
                       >
-                        <Sparkles className="w-4 h-4" />
+                        <FileText className="w-4 h-4" />
                         <div>
                           <div className="font-medium">General Tax Guidance</div>
                           <div className="text-xs text-text-tertiary">General tax questions and advice</div>

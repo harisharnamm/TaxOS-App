@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Sparkles, Lock, Eye, EyeOff, CheckCircle, AlertCircle } from 'lucide-react';
+import { Lock, Eye, EyeOff, CheckCircle, AlertCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Button } from '../components/atoms/Button';
 
@@ -86,14 +86,12 @@ export function ResetPassword() {
         <div className="flex-1 bg-gray-900 flex items-center justify-center p-4 sm:p-6 lg:p-8">
           <div className="w-full max-w-md text-center space-y-6 sm:space-y-8">
             {/* Logo */}
-            <div className="flex items-center justify-center space-x-3 mb-6 sm:mb-8">
-              <div className="p-2 sm:p-3 bg-primary rounded-xl shadow-soft">
-                <Sparkles className="w-6 h-6 sm:w-8 sm:h-8 text-gray-900" />
-              </div>
-              <div>
-                <span className="text-xl sm:text-2xl font-bold text-white tracking-tight">TaxOS</span>
-                <p className="text-xs sm:text-sm text-gray-400 font-medium">by Nurahex</p>
-              </div>
+            <div className="flex items-center justify-center mb-6 sm:mb-8">
+              <img 
+                src="/taxos-logo.png" 
+                alt="Taxos" 
+                className="h-10 sm:h-20 w-auto"
+              />
             </div>
 
             {/* Success Icon */}
@@ -164,14 +162,12 @@ export function ResetPassword() {
         <div className="w-full max-w-md space-y-6 sm:space-y-8">
           {/* Logo */}
           <div className="text-center">
-            <div className="flex items-center justify-center space-x-3 mb-6 sm:mb-8">
-              <div className="p-2 sm:p-3 bg-primary rounded-xl shadow-soft">
-                <Sparkles className="w-6 h-6 sm:w-8 sm:h-8 text-gray-900" />
-              </div>
-              <div>
-                <span className="text-xl sm:text-2xl font-bold text-white tracking-tight">TaxOS</span>
-                <p className="text-xs sm:text-sm text-gray-400 font-medium">by Nurahex</p>
-              </div>
+            <div className="flex items-center justify-center mb-6 sm:mb-8">
+              <img 
+                src="/taxos-logo.png" 
+                alt="Taxos" 
+                className="h-10 sm:h-20 w-auto"
+              />
             </div>
           </div>
 
