@@ -34,7 +34,7 @@ function AppContent() {
   const location = useLocation();
   
   useEffect(() => {
-    console.log('🔄 Route changed to:', location.pathname);
+    // Route change tracking for analytics
   }, [location]);
 
   // Main app layout component

@@ -29,12 +29,7 @@ export class DocumentService {
     onProgress?: (progress: UploadProgress) => void
   ): Promise<{ data: Document | null; error: any }> {
     try {
-      console.log('📤 DocumentService.uploadDocument called with:', {
-        fileName: file.name,
-        userId,
-        clientId: options.clientId,
-        documentType: options.documentType
-      });
+      // Starting document upload process
       
       // Validate that clientId is provided
       if (!options.clientId) {
@@ -61,12 +56,7 @@ export class DocumentService {
         return { data: null, error };
       }
 
-      console.log('✅ File validation passed');
-      console.log('📤 Starting upload with options:', {
-        clientId: options.clientId,
-        documentType: options.documentType,
-        tags: options.tags
-      });
+      // File validation passed, starting upload
 
       // Update progress - starting
       onProgress?.({
@@ -145,11 +135,7 @@ export class DocumentService {
         return { data: null, error: dbError };
       }
 
-      console.log('✅ Document record created:', {
-        id: documentData?.id,
-        clientId: documentData?.client_id,
-        filename: documentData?.original_filename
-      });
+      // Document record created successfully
 
       onProgress?.({
         file,
@@ -160,10 +146,7 @@ export class DocumentService {
 
       // Start background processing if enabled
       if (options.processingOptions?.enableOCR || options.processingOptions?.enableAI) {
-        console.log('🤖 Starting background processing for document:', documentData!.id);
         this.initiateDocumentProcessing(documentData!.id, userId, options.processingOptions);
-      } else {
-        console.log('⏭️ Skipping background processing (not enabled)');
       }
 
       // Note: Document classification and specific processing is now handled
@@ -276,7 +259,7 @@ export class DocumentService {
     expiresIn: number = 3600
   ): Promise<{ data: string | null; error: any }> {
     try {
-      console.log('🔗 Getting signed URL for document ID:', documentId);
+      // Getting signed URL for document
       
       // Get document info
       const { data: document, error: dbError } = await supabase
@@ -319,18 +302,13 @@ export class DocumentService {
         return { data: null, error: new Error('Failed to generate signed URL') };
       }
 
-      console.log('✅ Successfully created signed URL:', signedUrl.signedUrl);
+      // Signed URL created successfully
       
       // Test the URL accessibility
       try {
         const testResponse = await fetch(signedUrl.signedUrl, { method: 'HEAD' });
-        console.log('🔍 URL accessibility test:', {
-          status: testResponse.status,
-          ok: testResponse.ok,
-          headers: Object.fromEntries(testResponse.headers.entries())
-        });
       } catch (testError) {
-        console.warn('⚠️ URL accessibility test failed:', testError);
+        console.warn('URL accessibility test failed:', testError);
       }
       
       return { data: signedUrl.signedUrl, error: null };

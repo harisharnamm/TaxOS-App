@@ -42,11 +42,7 @@ const EnhancedPreviewContent: React.FC<{
   const blockingCheckTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const hasStartedCheckingRef = useRef(false);
 
-  console.log('🖼️ EnhancedPreviewContent rendering with:', {
-    filename: document.original_filename,
-    type: document.mime_type,
-    url: previewUrl
-  });
+  // Enhanced preview content rendering
 
   const isPDF = document.mime_type === 'application/pdf';
   const isImage = document.mime_type?.startsWith('image/');
@@ -56,9 +52,7 @@ const EnhancedPreviewContent: React.FC<{
     let loadingTimeout: NodeJS.Timeout | null = null;
     
     if (loading && isPDF) {
-      console.log('⏱️ Setting timeout to clear loading state for PDF');
       loadingTimeout = setTimeout(() => {
-        console.log('⏰ Timeout reached, clearing loading state');
         setLoading(false);
         
         // Check if iframe might be blocked by checking if we can access its content
@@ -68,12 +62,10 @@ const EnhancedPreviewContent: React.FC<{
             // Try to access iframe content to detect if it's blocked
             const doc = iframe.contentDocument || iframe.contentWindow?.document;
             if (!doc) {
-              console.log('🚫 Iframe content appears to be blocked');
               setChromeBlocked(true);
               setError('Browser has blocked this content due to security policies.');
             }
           } catch (e) {
-            console.log('🚫 Cross-origin error suggests content might be blocked:', e);
             // This is normal for cross-origin content, don't set as blocked
           }
         }
@@ -88,7 +80,7 @@ const EnhancedPreviewContent: React.FC<{
   }, [loading, isPDF]);
 
   const handleLoad = () => {
-    console.log('✅ Preview loaded successfully');
+    // Preview loaded successfully
     setLoading(false);
     setLoadSuccessful(true);
     setError(null);
@@ -103,7 +95,7 @@ const EnhancedPreviewContent: React.FC<{
     // Use refs to avoid state updates that cause re-renders
     if (isPDF && iframeRef.current && !hasStartedCheckingRef.current) {
       hasStartedCheckingRef.current = true;
-      console.log('🔍 Starting Chrome blocking detection for PDF...');
+      // Starting Chrome blocking detection
       
       // Give Chrome a moment to potentially block the content after loading
       blockingCheckTimeoutRef.current = setTimeout(() => {

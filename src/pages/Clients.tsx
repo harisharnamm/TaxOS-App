@@ -81,9 +81,7 @@ export function Clients() {
   };
 
   const handleEditClient = (client: ClientWithDocuments) => {
-    // TODO: Implement edit functionality
-    console.log('Edit client:', client.name);
-    // For now, just navigate to client detail page
+    // Navigate to client detail page for editing
     navigate(`/clients/${client.id}`);
   };
 

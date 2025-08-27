@@ -86,7 +86,6 @@ export function Dashboard() {
   // Check if user just logged in
   useEffect(() => {
     const justLoggedIn = sessionStorage.getItem('justLoggedIn');
-    console.log('Dashboard checking justLoggedIn:', justLoggedIn);
     if (justLoggedIn === 'true') {
       setShowPreloader(true);
       sessionStorage.removeItem('justLoggedIn');
@@ -95,7 +94,6 @@ export function Dashboard() {
     // Also listen for storage events to catch changes
     const handleStorageChange = () => {
       const updatedValue = sessionStorage.getItem('justLoggedIn');
-      console.log('Storage event detected, justLoggedIn:', updatedValue);
       if (updatedValue === 'true') {
         setShowPreloader(true);
         sessionStorage.removeItem('justLoggedIn');
@@ -192,11 +190,9 @@ export function Dashboard() {
   };
 
   const handleMarkTaskComplete = async (taskId: string) => {
-    console.log('🔄 Marking task as complete:', taskId);
     const result = await updateTaskStatus(taskId, 'completed');
     if (result.success) {
       toast.success('Task Completed', 'Task has been marked as complete');
-      console.log('✅ Task marked as complete successfully');
       // Refresh dashboard to update stats
       refreshDashboard();
       // Also refresh tasks to ensure we have the latest data
@@ -208,11 +204,9 @@ export function Dashboard() {
   };
 
   const handleMarkTaskPending = async (taskId: string) => {
-    console.log('🔄 Marking task as pending:', taskId);
     const result = await updateTaskStatus(taskId, 'pending');
     if (result.success) {
       toast.success('Task Updated', 'Task has been marked as pending');
-      console.log('✅ Task marked as pending successfully');
       // Refresh dashboard to update stats
       refreshDashboard();
       // Also refresh tasks to ensure we have the latest data
