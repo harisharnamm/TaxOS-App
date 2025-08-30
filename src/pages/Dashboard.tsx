@@ -37,7 +37,6 @@ import {
   PieChart,
   ArrowUpRight,
   ArrowDownRight,
-  Sparkles,
   Globe,
   Building2,
   ChevronDown,
@@ -425,15 +424,7 @@ export function Dashboard() {
 
             <div className="relative p-8 sm:p-10 lg:p-12">
               <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8">
-                <div className="flex items-center space-x-6">
-                  <div className="relative">
-                    <div className="p-4 bg-gradient-to-br from-primary to-primary-hover rounded-2xl shadow-xl">
-                      <Sparkles className="w-10 h-10 text-white" />
-                    </div>
-                    <div className="absolute -top-1 -right-1 w-6 h-6 bg-green-500 rounded-full border-4 border-surface flex items-center justify-center">
-                      <div className="w-2 h-2 bg-white rounded-full"></div>
-                    </div>
-                  </div>
+                <div>
                   <div>
                     <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-text-primary mb-3">
                       Welcome back!
@@ -842,9 +833,9 @@ export function Dashboard() {
                 >
                   <div className="flex items-center gap-3">
                     <div className="p-1 bg-white/20 rounded-lg group-hover:bg-white/30 transition-colors">
-                      <Plus className="w-4 h-4" />
+                      <Plus className="w-4 h-4 text-text-primary" />
                     </div>
-                    <span className="font-medium">Add New Client</span>
+                    <span className="text-text-primary">Add New Client</span>
                   </div>
                   <ArrowUpRight className="w-4 h-4 ml-auto opacity-70 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
                 </Button>
@@ -939,7 +930,7 @@ export function Dashboard() {
                             {insight.description}
                           </p>
                           <div className="flex items-center gap-2 mt-3">
-                            <Badge variant="secondary" size="sm" className="text-xs">
+                            <Badge variant="neutral" size="sm" className="text-xs">
                               AI Generated
                             </Badge>
                             <span className="text-xs text-text-tertiary">•</span>

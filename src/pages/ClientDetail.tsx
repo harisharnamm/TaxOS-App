@@ -25,13 +25,13 @@ import { Input } from '../components/atoms/Input';
 import { OpenBankingSection } from '../components/ui/open-banking-section';
 import { generateTransactionId } from '../lib/utils';
 import { supabase } from '../lib/supabase';
-import { 
-  ArrowLeft, 
-  Edit, 
-  FileText, 
-  Plus, 
-  Upload, 
-  MessageSquare, 
+import {
+  ArrowLeft,
+  Edit,
+  FileText,
+  Plus,
+  Upload,
+  MessageSquare,
   DollarSign,
   Calendar,
   User,
@@ -43,15 +43,14 @@ import {
   Eye,
   Download,
   CheckCircle2,
+  CheckSquare,
   Clock,
   TrendingUp,
   Link2,
-  AlertCircle,
   Search,
   Filter,
   X,
-  ChevronDown,
-  Zap
+  ChevronDown
 } from 'lucide-react';
 
 // Legacy transaction interface for backward compatibility
@@ -348,6 +347,7 @@ export function ClientDetail() {
   const [showEditClient, setShowEditClient] = useState(false);
   const [showUpload, setShowUpload] = useState(false);
   const [showAddTransaction, setShowAddTransaction] = useState(false);
+  const [showAINoteModal, setShowAINoteModal] = useState(false);
   const [selectedNote, setSelectedNote] = useState<any>(null);
   const [selectedDocument, setSelectedDocument] = useState<any>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -1028,8 +1028,11 @@ export function ClientDetail() {
         {activeTab === 'notes' && (
           <div className="space-y-6">
             <div className="flex justify-between items-center">
-              <h2 className="text-xl font-semibold text-text-primary">Notes</h2>
-              <Button 
+              <div>
+                <h2 className="text-xl font-semibold text-text-primary">Notes</h2>
+                <p className="text-sm text-text-tertiary mt-1">Track client information and AI-powered insights</p>
+              </div>
+              <Button
                 icon={Plus}
                 onClick={() => setShowAddNote(true)}
                 className="bg-primary text-gray-900 hover:bg-primary-hover"
@@ -1037,6 +1040,8 @@ export function ClientDetail() {
                 Add Note
               </Button>
             </div>
+
+
 
             {notesLoading ? (
               <div className="space-y-4">
@@ -1049,56 +1054,152 @@ export function ClientDetail() {
               </div>
             ) : notes.length > 0 ? (
               <div className="space-y-4">
-                {notes.map(note => (
-                  <div key={note.id} className="bg-surface-elevated rounded-xl border border-border-subtle p-6 shadow-soft">
-                    <div className="flex items-start justify-between mb-3">
-                      <h3 className="font-semibold text-text-primary">{note.title}</h3>
-                      <div className="flex items-center space-x-2">
-                        <Badge 
-                          variant={note.priority === 'high' ? 'error' : note.priority === 'medium' ? 'warning' : 'neutral'} 
-                          size="sm"
-                        >
-                          {note.priority} priority
-                        </Badge>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          icon={Edit}
-                          onClick={() => {
-                            setSelectedNote(note);
-                            setShowEditNote(true);
-                          }}
-                        />
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          icon={Trash2}
-                          onClick={() => handleDeleteNote(note.id)}
-                          className="text-red-600 hover:text-red-700"
-                        />
-                      </div>
-                    </div>
-                    
-                    <p className="text-text-secondary mb-3 whitespace-pre-line">{note.content}</p>
-                    
-                    <div className="flex items-center justify-between text-sm">
-                      <div className="flex items-center space-x-4">
-                        <Badge variant="neutral" size="sm">
-                          {note.category.replace('_', ' ')}
-                        </Badge>
-                        {note.tags.length > 0 && (
-                          <div className="flex items-center space-x-1">
-                            <Tag className="w-3 h-3 text-text-tertiary" />
-                            <span className="text-text-tertiary">{note.tags.join(', ')}</span>
+                {/* Manual Notes Section */}
+                {notes.filter(note => note.category !== 'ai_generated').length > 0 && (
+                  <div className="space-y-3">
+                    <h3 className="text-lg font-semibold text-text-primary flex items-center space-x-2">
+                      <MessageSquare className="w-5 h-5" />
+                      <span>Manual Notes</span>
+                    </h3>
+                    <div className="space-y-3">
+                      {notes.filter(note => note.category !== 'ai_generated').map(note => (
+                        <div key={note.id} className="bg-surface-elevated rounded-xl border border-border-subtle p-6 shadow-soft">
+                          <div className="flex items-start justify-between mb-3">
+                            <h4 className="font-semibold text-text-primary">{note.title}</h4>
+                            <div className="flex items-center space-x-2">
+                              <Badge
+                                variant={note.priority === 'high' ? 'error' : note.priority === 'medium' ? 'warning' : 'neutral'}
+                                size="sm"
+                              >
+                                {note.priority} priority
+                              </Badge>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                icon={Edit}
+                                onClick={() => {
+                                  setSelectedNote(note);
+                                  setShowEditNote(true);
+                                }}
+                              />
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                icon={Trash2}
+                                onClick={() => handleDeleteNote(note.id)}
+                                className="text-red-600 hover:text-red-700"
+                              />
+                            </div>
                           </div>
-                        )}
-                      </div>
-                      <span className="text-text-tertiary">
-                        {new Date(note.created_at).toLocaleDateString()}
-                      </span>
+
+                          <p className="text-text-secondary mb-3 whitespace-pre-line">{note.content}</p>
+
+                          <div className="flex items-center justify-between text-sm">
+                            <div className="flex items-center space-x-4">
+                              <Badge variant="neutral" size="sm">
+                                {note.category.replace('_', ' ')}
+                              </Badge>
+                              {note.tags.length > 0 && (
+                                <div className="flex items-center space-x-1">
+                                  <Tag className="w-3 h-3 text-text-tertiary" />
+                                  <span className="text-text-tertiary">{note.tags.join(', ')}</span>
+                                </div>
+                              )}
+                            </div>
+                            <span className="text-text-tertiary">
+                              {new Date(note.created_at).toLocaleDateString()}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                ))}
+                )}
+
+                {/* AI-Generated Notes Section */}
+                {notes.filter(note => note.category === 'ai_generated').length > 0 && (
+                  <div className="space-y-3">
+                    <h3 className="text-lg font-semibold text-text-primary flex items-center space-x-2">
+                      <TrendingUp className="w-5 h-5 text-blue-600" />
+                      <span>AI-Generated Insights</span>
+                      <Badge variant="success" size="sm">Automated</Badge>
+                    </h3>
+                    <div className="space-y-3">
+                      {notes.filter(note => note.category === 'ai_generated').map(note => (
+                        <div
+                          key={note.id}
+                          className="bg-gradient-to-r from-blue-50/80 to-purple-50/80 dark:from-blue-950/30 dark:to-purple-950/30 rounded-xl border border-blue-200 dark:border-blue-800 p-6 shadow-soft cursor-pointer hover:shadow-medium transition-all duration-200 relative group"
+                          onClick={() => {
+                            setSelectedNote(note);
+                            setShowAINoteModal(true);
+                          }}
+                        >
+                          {/* AI indicator badge */}
+                          <div className="absolute top-3 right-3">
+                            <div className="flex items-center space-x-1 bg-gradient-to-r from-blue-100 to-purple-100 dark:from-blue-900/50 dark:to-purple-900/50 px-2 py-1 rounded-full border border-blue-300 dark:border-blue-700">
+                              <TrendingUp className="w-3 h-3 text-blue-600 dark:text-blue-400" />
+                              <span className="text-xs text-blue-700 dark:text-blue-300 font-medium">AI</span>
+                            </div>
+                          </div>
+
+                          {/* Click indicator */}
+                          <div className="absolute bottom-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                            <div className="flex items-center space-x-1 text-blue-600 dark:text-blue-400">
+                              <span className="text-xs font-medium">View Details</span>
+                              <ChevronDown className="w-3 h-3 rotate-[-90deg]" />
+                            </div>
+                          </div>
+
+                          <div className="flex items-start justify-between mb-3 pr-20">
+                            <div className="flex-1">
+                              <h4 className="font-semibold text-text-primary mb-1">{note.title}</h4>
+                              <div className="flex items-center space-x-2">
+                                <Badge variant="neutral" size="sm" className="bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300">
+                                  AI Analysis
+                                </Badge>
+                                <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">Click to view insights</span>
+                              </div>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                icon={Trash2}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteNote(note.id);
+                                }}
+                                className="text-red-600 hover:text-red-700"
+                              />
+                            </div>
+                          </div>
+
+                          <p className="text-text-secondary mb-3 whitespace-pre-line line-clamp-2 group-hover:line-clamp-none transition-all duration-200">
+                            {note.content}
+                          </p>
+
+                          <div className="flex items-center justify-between text-sm">
+                            <div className="flex items-center space-x-4">
+                              {note.tags.length > 0 && (
+                                <div className="flex items-center space-x-1">
+                                  <Tag className="w-3 h-3 text-text-tertiary" />
+                                  <span className="text-text-tertiary">{note.tags.join(', ')}</span>
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex items-center space-x-2 text-text-tertiary">
+                              <span className="text-blue-600 dark:text-blue-400 font-medium">AI Generated</span>
+                              <span>•</span>
+                              <span>{new Date(note.created_at).toLocaleDateString()}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+
               </div>
             ) : (
               <EmptyState
@@ -1114,6 +1215,8 @@ export function ClientDetail() {
             )}
           </div>
         )}
+
+
       </div>
 
       {/* Dialogs */}
@@ -1159,6 +1262,159 @@ export function ClientDetail() {
           }}
           onDownload={() => handleDownloadDocument(selectedDocument.id, selectedDocument.original_filename)}
         />
+      )}
+
+      {/* AI Note Modal */}
+      {showAINoteModal && selectedNote && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-surface-elevated rounded-2xl border border-border-subtle shadow-premium max-w-4xl w-full max-h-[90vh] overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 border-b border-border-subtle bg-gradient-to-r from-blue-50/80 to-purple-50/80 dark:from-blue-950/30 dark:to-purple-950/30">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900/50 dark:to-purple-900/50 rounded-xl">
+                  <TrendingUp className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-semibold text-text-primary">{selectedNote.title}</h2>
+                  <p className="text-sm text-text-tertiary">AI-Generated Insights & Action Items</p>
+                </div>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Badge variant="success" size="sm" className="bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300">
+                  AI Analysis
+                </Badge>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  icon={X}
+                  onClick={() => {
+                    setShowAINoteModal(false);
+                    setSelectedNote(null);
+                  }}
+                  className="text-text-tertiary hover:text-text-primary"
+                />
+              </div>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Left Column - AI Remarks */}
+                <div className="lg:col-span-2 space-y-6">
+                  <div className="bg-gradient-to-r from-blue-50/50 to-purple-50/50 dark:from-blue-950/20 dark:to-purple-950/20 rounded-xl p-6 border border-blue-200 dark:border-blue-800">
+                    <h3 className="text-lg font-semibold text-text-primary mb-4 flex items-center space-x-2">
+                      <MessageSquare className="w-5 h-5 text-blue-600" />
+                      <span>AI Analysis & Remarks</span>
+                    </h3>
+                    <div className="prose prose-sm max-w-none dark:prose-invert">
+                      <p className="text-text-secondary whitespace-pre-line leading-relaxed">
+                        {selectedNote.content}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* AI Metadata */}
+                  <div className="bg-surface rounded-xl p-4 border border-border-subtle">
+                    <h4 className="font-medium text-text-primary mb-3">Analysis Details</h4>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <span className="text-text-tertiary">Generated:</span>
+                        <span className="ml-2 text-text-primary">{new Date(selectedNote.created_at).toLocaleDateString()}</span>
+                      </div>
+                      <div>
+                        <span className="text-text-tertiary">Analysis Type:</span>
+                        <span className="ml-2 text-text-primary">Automated</span>
+                      </div>
+                      <div>
+                        <span className="text-text-tertiary">Confidence:</span>
+                        <span className="ml-2 text-green-600 font-medium">High</span>
+                      </div>
+                      <div>
+                        <span className="text-text-tertiary">Data Sources:</span>
+                        <span className="ml-2 text-text-primary">{documents.length} documents, {transactions.length} transactions</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right Column - Action Checklist */}
+                <div className="space-y-6">
+                  <div className="bg-surface rounded-xl p-6 border border-border-subtle">
+                    <h3 className="text-lg font-semibold text-text-primary mb-4 flex items-center space-x-2">
+                      <CheckSquare className="w-5 h-5 text-green-600" />
+                      <span>Action Items</span>
+                    </h3>
+                    <div className="space-y-3">
+                      {[
+                        { id: 1, text: "Review tax deduction opportunities", completed: false, priority: "high" },
+                        { id: 2, text: "Verify expense categorization accuracy", completed: false, priority: "medium" },
+                        { id: 3, text: "Check for missing receipts", completed: false, priority: "low" },
+                        { id: 4, text: "Update client records with insights", completed: false, priority: "medium" },
+                        { id: 5, text: "Schedule follow-up review", completed: false, priority: "low" }
+                      ].map((item) => (
+                        <div key={item.id} className="flex items-start space-x-3 p-3 rounded-lg hover:bg-surface-hover transition-colors">
+                          <input
+                            type="checkbox"
+                            checked={item.completed}
+                            onChange={() => {
+                              // TODO: Implement checklist item toggle
+                              console.log('Toggle item:', item.id);
+                            }}
+                            className="w-4 h-4 text-primary bg-surface border-border-subtle rounded focus:ring-primary focus:ring-1 mt-0.5"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm text-text-primary">{item.text}</p>
+                            <div className="flex items-center space-x-2 mt-1">
+                              <Badge
+                                variant={item.priority === 'high' ? 'error' : item.priority === 'medium' ? 'warning' : 'neutral'}
+                                size="sm"
+                              >
+                                {item.priority}
+                              </Badge>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Quick Actions */}
+                  <div className="bg-gradient-to-r from-green-50/50 to-blue-50/50 dark:from-green-950/20 dark:to-blue-950/20 rounded-xl p-4 border border-green-200 dark:border-green-800">
+                    <h4 className="font-medium text-text-primary mb-3">Quick Actions</h4>
+                    <div className="space-y-2">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="w-full justify-start"
+                        icon={Plus}
+                        onClick={() => {
+                          // TODO: Create manual note based on AI insights
+                          setShowAINoteModal(false);
+                          setShowAddNote(true);
+                        }}
+                      >
+                        Create Manual Note
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="w-full justify-start"
+                        icon={Trash2}
+                        onClick={() => {
+                          handleDeleteNote(selectedNote.id);
+                          setShowAINoteModal(false);
+                          setSelectedNote(null);
+                        }}
+                      >
+                        Delete AI Note
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

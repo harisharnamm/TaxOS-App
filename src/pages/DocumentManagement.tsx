@@ -17,24 +17,22 @@ import { Skeleton } from '../components/ui/skeleton';
 import { Button } from '../components/atoms/Button';
 import { Badge } from '../components/atoms/Badge';
 import { Input } from '../components/atoms/Input';
-import { 
-  Search, 
-  Filter, 
-  FileText, 
-  Upload, 
-  Eye, 
-  Download, 
-  Zap, 
-  CheckCircle, 
-  Clock, 
+import {
+  Search,
+  Filter,
+  FileText,
+  Upload,
+  Eye,
+  Download,
+  Zap,
+  CheckCircle,
+  Clock,
   AlertTriangle,
   RefreshCw,
   Plus,
   X,
   Trash2,
   Brain,
-  ChevronDown,
-  ChevronRight,
   Calculator
 } from 'lucide-react';
 import { Document, DOCUMENT_TYPE_LABELS } from '../types/documents';
@@ -803,7 +801,7 @@ export function DocumentManagement() {
             ))}
           </div>
         ) : (
-          <div className="bg-surface-elevated rounded-2xl border border-border-subtle shadow-soft overflow-hidden">
+          <div className="bg-surface-elevated rounded-2xl border border-border-subtle shadow-soft">
             <div className="divide-y divide-border-subtle">
               {/* Show processing documents at the top */}
                               {/* Then show the rest of the documents */}
@@ -813,91 +811,118 @@ export function DocumentManagement() {
                   return (
                     <React.Fragment key={document.id}>
                       <div
-                        className={`p-6 transition-all duration-200 cursor-pointer flex items-center justify-between group border rounded-xl ${
-                          isExpanded 
-                            ? 'bg-surface-elevated border-border-subtle shadow-sm' 
-                            : 'hover:bg-surface-hover border-transparent hover:border-primary/20'
+                        className={`p-6 transition-all duration-300 cursor-pointer group border rounded-2xl ${
+                          isExpanded
+                            ? 'bg-gradient-to-r from-surface-elevated to-surface-hover border-primary/30 shadow-lg shadow-primary/5'
+                            : 'hover:bg-surface-hover border-transparent hover:border-primary/20 hover:shadow-md'
                         }`}
                         onClick={() => setExpandedDocumentId(isExpanded ? null : document.id)}
                       >
-                        <div className="flex items-center space-x-4">
-                          <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 group-hover:from-primary/20 group-hover:to-primary/10 transition-all duration-200 shadow-sm group-hover:scale-105">
-                            {isExpanded ? (
-                              <ChevronDown className="w-5 h-5 text-primary transition-transform duration-200" />
-                            ) : (
-                              <ChevronRight className="w-5 h-5 text-primary transition-transform duration-200" />
-                            )}
-                          </div>
-                          <div className="flex items-center space-x-3">
-                            <div>
-                              <h3 className="font-semibold text-text-primary text-lg">{document.original_filename}</h3>
-                              <p className="text-xs text-text-tertiary mt-1">
-                                {isExpanded ? 'Click to collapse details' : 'Click to expand details'}
-                              </p>
+                        <div className="flex items-center justify-between gap-4">
+                          <div className="flex items-center space-x-4 min-w-0 flex-1">
+                            {/* Document Type Icon */}
+                            <div className="flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-br from-primary/15 to-primary/8 group-hover:from-primary/25 group-hover:to-primary/15 transition-all duration-300 shadow-sm flex-shrink-0">
+                              <FileText className="w-6 h-6 text-slate-700 group-hover:text-slate-800 group-hover:scale-110 transition-all duration-200" />
                             </div>
-                            {getStatusBadge(document)}
-                            {getClassificationBadge(document)}
+
+                            {/* Document Information */}
+                            <div className="flex-1 min-w-0 overflow-hidden">
+                              <div className="flex items-start justify-between gap-3 mb-1">
+                                <div className="flex-1 min-w-0">
+                                  <h3 className="font-semibold text-text-primary text-lg truncate group-hover:text-text-primary transition-colors duration-200" title={document.original_filename}>
+                                    {document.original_filename}
+                                  </h3>
+                                  <div className="flex items-center space-x-2 mt-1">
+                                    {getStatusBadge(document)}
+                                    {getClassificationBadge(document)}
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="flex items-center space-x-3 text-sm text-text-tertiary">
+                                <span className="flex items-center space-x-1 flex-shrink-0">
+                                  <Clock className="w-3 h-3" />
+                                  <span className="whitespace-nowrap">{new Date(document.created_at).toLocaleDateString()}</span>
+                                </span>
+                                <span className="flex items-center space-x-1 flex-shrink-0">
+                                  <span className="text-xs">•</span>
+                                  <span className="whitespace-nowrap">{(document.file_size / 1024 / 1024).toFixed(2)} MB</span>
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Click to expand badge */}
+                          <div className="flex items-center px-3">
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${
+                              isExpanded
+                                ? 'bg-primary/20 text-primary font-semibold'
+                                : 'bg-surface-hover text-text-secondary group-hover:bg-primary/5 group-hover:text-text-secondary'
+                            } transition-all duration-200`}>
+                              {isExpanded ? 'Expanded' : 'Click to expand'}
+                            </span>
+                          </div>
+
+                          {/* Action Buttons */}
+                          <div className="flex items-center gap-1 flex-shrink-0 ml-3 pl-4 min-w-max bg-surface-hover/30 rounded-lg p-2">
+                            <div className="flex items-center mr-2 flex-shrink-0">
+                              {getProcessingIcon(document)}
+                            </div>
+                            <div className="flex items-center gap-2">
+
+                              
+                              {(state.needsApproval || document.eden_ai_classification === 'unknown') && (
+                                <Button
+                                  size="sm"
+                                  onClick={e => { e.stopPropagation(); handleClassificationApproval(document); }}
+                                  className="bg-primary text-gray-900 hover:bg-primary-hover px-3 flex-shrink-0"
+                                >
+                                  Review
+                                </Button>
+                              )}
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                icon={Eye}
+                                onClick={e => { e.stopPropagation(); handlePreviewDocument(document.id); }}
+                                className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 flex-shrink-0"
+                                title="Preview Document"
+                              />
+                              {document.ocr_text && document.ocr_text.length > 10 && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  icon={Brain}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleAIAnalysis(document);
+                                  }}
+                                  className={`${document.ai_analysis_response ? 'text-green-600 hover:text-green-700 hover:bg-green-50' : 'text-purple-600 hover:text-purple-700 hover:bg-purple-50'} flex-shrink-0`}
+                                  title={`AI Analysis - ${document.ai_analysis_response ? 'Cached analysis available' : 'Generate new analysis'}`}
+                                />
+                              )}
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                icon={Download}
+                                onClick={e => { e.stopPropagation(); handleDownloadDocument(document.id, document.original_filename); }}
+                                className="text-green-600 hover:text-green-700 hover:bg-green-50 flex-shrink-0"
+                                title="Download"
+                              />
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                icon={Trash2}
+                                onClick={e => { e.stopPropagation(); handleDeleteDocument(document.id); }}
+                                className="text-red-600 hover:text-red-700 hover:bg-red-50 flex-shrink-0"
+                                title="Delete"
+                              />
+                            </div>
                           </div>
                         </div>
-                      <div className="flex items-center space-x-2">
-                        {getProcessingIcon(document)}
-                        {state.needsApproval && (
-                          <Button
-                            size="sm"
-                            onClick={e => { e.stopPropagation(); handleClassificationApproval(document); }}
-                            className="bg-primary text-gray-900 hover:bg-primary-hover"
-                          >
-                            Review Classification
-                          </Button>
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={e => { e.stopPropagation(); handlePreviewDocument(document.id); }}
-                          className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                        >
-                          Preview
-                        </Button>
-                        
-                        {document.ocr_text && document.ocr_text.length > 50 && document.processing_status === 'completed' && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            icon={Brain}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleAIAnalysis(document);
-                            }}
-                            className={`${document.ai_analysis_response ? 'text-green-600 hover:text-green-700 hover:bg-green-50' : 'text-purple-600 hover:text-purple-700 hover:bg-purple-50'}`}
-                            title={`AI Analysis - ${document.ai_analysis_response ? 'Cached analysis available' : 'Generate new analysis'}`}
-                          >
-                            AI Analysis
-                          </Button>
-                        )}
-                        
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          icon={Download}
-                          onClick={e => { e.stopPropagation(); handleDownloadDocument(document.id, document.original_filename); }}
-                          className="text-green-600 hover:text-green-700 hover:bg-green-50"
-                        >
-                          Download
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          icon={Trash2}
-                          onClick={e => { e.stopPropagation(); handleDeleteDocument(document.id); }}
-                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                        >
-                          Delete
-                        </Button>
-                                              </div>
                       </div>
                       {/* Expanded processing details */}
                       {isExpanded && (
-                        <div className="bg-surface p-6 border-t border-border-subtle rounded-b-2xl mt-0">
+                        <div className="bg-gradient-to-br from-surface to-surface-hover p-8 border-t border-primary/20 rounded-b-2xl mt-2 shadow-inner">
                           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                             {/* Left: Document Info */}
                             <div className="lg:col-span-2">

@@ -57,7 +57,21 @@ export function SignUp() {
       });
       
       if (error) {
-        setError(error.message);
+        console.error('❌ Sign up failed:', error.message);
+
+        // Provide user-friendly error messages
+        let userFriendlyMessage = error.message;
+        if (error.message.includes('User already registered')) {
+          userFriendlyMessage = 'An account with this email already exists. Please sign in instead.';
+        } else if (error.message.includes('Password should be at least')) {
+          userFriendlyMessage = 'Password must be at least 6 characters long.';
+        } else if (error.message.includes('Unable to validate email address')) {
+          userFriendlyMessage = 'Please enter a valid email address.';
+        } else if (error.message.includes('Signup is disabled')) {
+          userFriendlyMessage = 'Account registration is currently disabled. Please contact support.';
+        }
+
+        setError(userFriendlyMessage);
         setShowPreloader(false);
       } else {
         // Show email confirmation message
@@ -148,25 +162,33 @@ export function SignUp() {
           />
         </div>
 
-        {/* Error Messages */}
-        {error && (
-          <div className="absolute top-8 right-8 z-10 max-w-md">
-            <div className="bg-red-50 border border-red-200 rounded-xl p-3">
-              <p className="text-red-800 text-sm">{error}</p>
-            </div>
-          </div>
-        )}
+
 
         <div className="w-full max-w-md space-y-6 pt-16">
           {/* Header */}
-          <div className="animate-element animate-delay-100 text-center opacity-0">
-            <h1 className="text-4xl font-semibold leading-tight text-gray-900 mb-2">
+          <div className="animate-element animate-delay-100 opacity-0">
+            <h1 className="text-5xl font-light text-gray-900 tracking-tighter mb-8">
               Start your free trial
             </h1>
-            <p className="text-gray-700">
+            <p className="text-muted-foreground">
               Create your Taxos account today
             </p>
           </div>
+
+          {/* Error Display */}
+          {error && (
+            <div className="animate-element animate-delay-150 bg-red-50 border border-red-200 rounded-xl p-4 flex items-start space-x-3">
+              <div className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0">
+                <svg viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <p className="text-red-800 text-sm font-medium">Account Creation Failed</p>
+                <p className="text-red-700 text-sm mt-1">{error}</p>
+              </div>
+            </div>
+          )}
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-5">

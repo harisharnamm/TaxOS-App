@@ -86,7 +86,18 @@ export function SignIn() {
 
       if (error) {
         console.error('❌ Sign in failed:', error.message);
-        setError(error.message);
+
+        // Provide user-friendly error messages
+        let userFriendlyMessage = error.message;
+        if (error.message.includes('Invalid login credentials')) {
+          userFriendlyMessage = 'Invalid email or password. Please check your credentials and try again.';
+        } else if (error.message.includes('Email not confirmed')) {
+          userFriendlyMessage = 'Please check your email and confirm your account before signing in.';
+        } else if (error.message.includes('Too many requests')) {
+          userFriendlyMessage = 'Too many sign-in attempts. Please wait a few minutes before trying again.';
+        }
+
+        setError(userFriendlyMessage);
         setShowPreloader(false);
       } else {
         console.log('✅ Sign in successful, navigating to dashboard');
@@ -140,21 +151,7 @@ export function SignIn() {
         />
       </div>
 
-      {/* Error Messages */}
-      {(connectionError || error) && (
-        <div className="absolute top-8 right-8 z-10 max-w-md">
-          {connectionError && !error && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 mb-2">
-              <p className="text-yellow-800 text-sm">Connection to authentication service is currently unavailable. Sign-in may not work properly.</p>
-            </div>
-          )}
-          {error && (
-            <div className="bg-red-50 border border-red-200 rounded-xl p-3">
-              <p className="text-red-800 text-sm">{error}</p>
-            </div>
-          )}
-        </div>
-      )}
+
 
       <SignInPage
         title={
@@ -163,7 +160,8 @@ export function SignIn() {
           </span>
         }
         description="Sign in to your Taxos account"
-        heroImageSrc="https://images.pexels.com/photos/32489809/pexels-photo-32489809.jpeg?_gl=1*j7c3pm*_ga*NDg0MTc4NzYzLjE3NDg1OTk1MTM.*_ga_8JE65Q40S6*czE3NTExMTMyNTUkbzMkZzEkdDE3NTExMTMyNzgkajM3JGwwJGgw"
+        heroImageSrc="https://images.pexels.com/photos/32489809/pexels-photo-32489809.jpeg?_gl=1*j7c3pm*_ga*NDg0MTc4NzYzLjE3NDg1OTk1MTM.*_ga_8JE65Q40S6*czE3NTExMTMyNzgkajM3JGwwJGgw"
+        error={error}
         overlayContent={
           <div className="h-full flex flex-col py-16">
             {/* Upper side - Main text */}

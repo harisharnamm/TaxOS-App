@@ -387,16 +387,9 @@ export function AIAssistant() {
         <div className="bg-surface-elevated border-b border-border-subtle p-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <div className="p-2 bg-gradient-to-br from-primary/10 to-primary/5 rounded-xl">
-                <img 
-                  src="/taxos-logo.png" 
-                  alt="Taxos" 
-                  className="w-5 h-5"
-                />
-              </div>
               <div>
-                              <h2 className="font-semibold text-text-primary">AI Assistant</h2>
-              <p className="text-sm text-text-tertiary">Multi-context AI guidance for tax and financial professionals</p>
+                <h2 className="font-semibold text-text-primary">AI Assistant</h2>
+                <p className="text-sm text-text-tertiary">Multi-context AI guidance for tax and financial professionals</p>
               </div>
             </div>
             
