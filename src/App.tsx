@@ -140,6 +140,13 @@ function AppContent() {
           </AppLayout>
         </ProtectedRoute>
       } />
+      <Route path="/transactions/analytics/:clientId" element={
+        <ProtectedRoute>
+          <AppLayout>
+            <FluxAnalysis />
+          </AppLayout>
+        </ProtectedRoute>
+      } />
       <Route path="/workpapers" element={
         <ProtectedRoute>
           <AppLayout>

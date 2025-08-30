@@ -5,14 +5,13 @@ import { useState } from 'react';
 import { 
   LayoutDashboard, 
   Users2,
-  MessageSquare as MessageSquareIcon,
+  MessageSquare,
   GraduationCap,
   FileText, 
   CheckSquare,
   AlertTriangle, 
-  MessageSquare as ChatIcon, 
+  Bot, 
    Settings,
-  Sparkles,
   X,
   Search as SearchIcon,
   Banknote,
@@ -70,15 +69,11 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
 
         {/* Logo - Fixed at top */}
         <div className="flex-shrink-0 flex items-center px-6 sm:px-8 py-6 sm:py-8">
-          <div className="flex items-center space-x-3">
-            <div className="p-2 bg-primary rounded-xl shadow-soft">
-              <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-gray-900" />
-            </div>
-            <div>
-              <span className="text-lg sm:text-xl font-semibold text-text-primary tracking-tight">TaxOS</span>
-              <p className="text-xs text-text-tertiary font-medium">by Nurahex</p>
-            </div>
-          </div>
+          <img
+            src="/taxos-logo.png"
+            alt="TaxOS"
+            className="h-8 w-auto sm:h-10"
+          />
         </div>
 
         {/* Navigation - Scrollable area */}
@@ -136,10 +131,10 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
             <NavigationItem to="/irs-notices" icon={FileText}>
               Document Management
             </NavigationItem>
-            <NavigationItem to="/client-communications" icon={MessageSquareIcon}>
+            <NavigationItem to="/client-communications" icon={MessageSquare}>
               Client Communications
             </NavigationItem>
-            <NavigationItem to="/ai-assistant" icon={ChatIcon}>
+            <NavigationItem to="/ai-assistant" icon={Bot}>
               AI Assistant
             </NavigationItem>
             <NavigationItem to="/settings" icon={Settings}>

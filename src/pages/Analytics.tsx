@@ -5,6 +5,7 @@ import { Input } from '../components/atoms/Input'
 import { Badge } from '../components/atoms/Badge'
 import { Button } from '../components/atoms/Button'
 import { useClients } from '../hooks/useClients'
+import { useFluxAnalysis, useAvailablePeriods } from '../hooks/useFluxAnalysis'
 import {
   TrendingUp,
   TrendingDown,
@@ -24,8 +25,27 @@ import {
   Activity,
   PieChart,
   LineChart,
-  RefreshCw
+  RefreshCw,
+  AlertCircle
 } from 'lucide-react'
+
+// Utility functions for formatting
+const formatCurrency = (amount: number): string => {
+  if (amount === 0) return '0';
+  if (Math.abs(amount) < 1) return amount.toFixed(2);
+  if (Math.abs(amount) < 1000) return amount.toFixed(2);
+  if (Math.abs(amount) < 1000000) return amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return (amount / 1000000).toFixed(2) + 'M';
+};
+
+const formatPercentage = (percentage: number): string => {
+  if (percentage === 0) return '0%';
+  if (Math.abs(percentage) < 0.1) return '0%';
+  if (Math.abs(percentage) < 1) return percentage.toFixed(1) + '%';
+  if (Math.abs(percentage) < 100) return percentage.toFixed(1) + '%';
+  if (Math.abs(percentage) < 1000) return percentage.toFixed(0) + '%';
+  return (percentage > 0 ? '+' : '') + percentage.toFixed(0) + '%';
+};
 
 export function FluxAnalysis() {
   const { clientId } = useParams()
@@ -68,76 +88,47 @@ export function FluxAnalysis() {
   // Period state
   const [period, setPeriod] = useState<string>(new Date().toISOString().slice(0,7))
 
-  // Mock data for demonstration - in real app this would come from API
-  const fluxData = useMemo(() => [
-    {
-      category: 'Revenue',
-      current: 125000,
-      prior: 118000,
-      momDelta: 5.9,
-      yoyDelta: 12.3,
-      trend: 'up'
-    },
-    {
-      category: 'Cost of Goods Sold',
-      current: 75000,
-      prior: 78000,
-      momDelta: -3.8,
-      yoyDelta: 8.7,
-      trend: 'down'
-    },
-    {
-      category: 'Operating Expenses',
-      current: 35000,
-      prior: 32000,
-      momDelta: 9.4,
-      yoyDelta: 15.6,
-      trend: 'up'
-    },
-    {
-      category: 'Gross Profit',
-      current: 50000,
-      prior: 40000,
-      momDelta: 25.0,
-      yoyDelta: 33.3,
-      trend: 'up'
-    },
-    {
-      category: 'Net Income',
-      current: 15000,
-      prior: 8000,
-      momDelta: 87.5,
-      yoyDelta: 200.0,
-      trend: 'up'
-    }
-  ], [])
+  // Real data from API using the new hook
+  const { 
+    data: fluxAnalysisData, 
+    loading, 
+    error, 
+    refresh, 
+    refreshCache,
+    updatePeriod,
+    updateClient
+  } = useFluxAnalysis({
+    clientId: selectedClientId || undefined,
+    period,
+    autoRefresh: true,
+    refreshInterval: 300000 // 5 minutes
+  })
 
-  // Calculate summary statistics
-  const summaryStats = useMemo(() => {
-    const totalRevenue = fluxData.find(d => d.category === 'Revenue')?.current || 0
-    const totalExpenses = fluxData.find(d => d.category === 'Operating Expenses')?.current || 0
-    const netIncome = fluxData.find(d => d.category === 'Net Income')?.current || 0
+  // Available periods for the selected client
+  const { periods: availablePeriods } = useAvailablePeriods(selectedClientId || undefined)
 
-    const avgMomGrowth = fluxData.reduce((sum, d) => sum + d.momDelta, 0) / fluxData.length
-    const avgYoyGrowth = fluxData.reduce((sum, d) => sum + d.yoyDelta, 0) / fluxData.length
+  // Update period when it changes
+  useEffect(() => {
+    updatePeriod(period)
+  }, [period, updatePeriod])
 
-    return {
-      totalRevenue,
-      totalExpenses,
-      netIncome,
-      avgMomGrowth: Math.round(avgMomGrowth * 10) / 10,
-      avgYoyGrowth: Math.round(avgYoyGrowth * 10) / 10
-    }
-  }, [fluxData])
+  // Update client when it changes
+  useEffect(() => {
+    updateClient(selectedClientId || undefined)
+  }, [selectedClientId, updateClient])
 
-  // Top performers
-  const topPerformers = useMemo(() => {
-    const sorted = [...fluxData].sort((a, b) => b.momDelta - a.momDelta)
-    return {
-      increases: sorted.filter(d => d.momDelta > 0).slice(0, 3),
-      decreases: sorted.filter(d => d.momDelta < 0).slice(0, 3)
-    }
-  }, [fluxData])
+  // Extract data from API response
+  const fluxData = fluxAnalysisData?.fluxData || []
+  const summaryStats = fluxAnalysisData?.summary || {
+    totalRevenue: 0,
+    totalExpenses: 0,
+    netIncome: 0,
+    avgMomGrowth: 0,
+    avgYoyGrowth: 0
+  }
+  const topPerformers = fluxAnalysisData?.topPerformers || { increases: [], decreases: [] }
+  const performanceMetrics = fluxAnalysisData?.performanceMetrics
+  const metadata = fluxAnalysisData?.metadata
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-surface to-surface-elevated">
@@ -152,14 +143,45 @@ export function FluxAnalysis() {
               <p className="text-text-secondary text-lg">
                 Comprehensive financial movement analysis and performance insights
               </p>
+              {selectedClient && (
+                <div className="flex items-center gap-2 mt-2">
+                  <Badge variant="neutral" className="text-xs">
+                    Client-Specific Data
+                  </Badge>
+                  <span className="text-sm text-text-tertiary">
+                    Showing data for {selectedClient.name}
+                  </span>
+                </div>
+              )}
+              {metadata && (
+                <div className="flex items-center gap-2 mt-2">
+                  <Badge variant={metadata.cacheStatus === 'cached' ? 'success' : 'neutral'} className="text-xs">
+                    {metadata.cacheStatus === 'cached' ? 'Cached' : 'Live Data'}
+                  </Badge>
+                  <span className="text-sm text-text-tertiary">
+                    Last updated: {new Date(metadata.lastUpdated).toLocaleString()}
+                  </span>
+                </div>
+              )}
             </div>
             <div className="flex gap-3">
               <Button
                 variant="secondary"
                 className="flex items-center gap-2 shadow-soft"
+                onClick={refresh}
+                disabled={loading}
               >
-                <RefreshCw className="h-4 w-4" />
-                Refresh Data
+                <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                {loading ? 'Refreshing...' : 'Refresh Data'}
+              </Button>
+              <Button
+                variant="outline"
+                className="flex items-center gap-2 shadow-soft"
+                onClick={refreshCache}
+                disabled={loading}
+              >
+                <Zap className="h-4 w-4" />
+                Force Refresh
               </Button>
               <Button
                 variant="primary"
@@ -241,6 +263,35 @@ export function FluxAnalysis() {
           </div>
         </div>
 
+        {/* Error Display */}
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl">
+            <div className="flex items-center gap-3">
+              <AlertCircle className="w-5 h-5 text-red-500" />
+              <div>
+                <h3 className="font-medium text-red-800">Error Loading Data</h3>
+                <p className="text-sm text-red-600">{error}</p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={refresh}
+                className="ml-auto"
+              >
+                Retry
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Loading State */}
+        {loading && !fluxAnalysisData && (
+          <div className="mb-6 p-8 bg-surface rounded-xl border border-border-subtle text-center">
+            <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <p className="text-text-secondary">Loading flux analysis data...</p>
+          </div>
+        )}
+
         {/* Key Metrics Dashboard */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
           <div className="bg-surface-elevated rounded-2xl p-6 border border-border-subtle shadow-soft">
@@ -248,11 +299,19 @@ export function FluxAnalysis() {
               <div>
                 <p className="text-sm font-medium text-text-secondary">Total Revenue</p>
                 <p className="text-2xl font-bold text-text-primary">
-                  ${summaryStats.totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 0 })}
+                  ${formatCurrency(summaryStats.totalRevenue)}
                 </p>
                 <div className="flex items-center gap-1 mt-1">
-                  <TrendingUp className="h-3 w-3 text-green-500" />
-                  <span className="text-xs text-green-600 font-medium">+{summaryStats.avgMomGrowth}% MoM</span>
+                  {summaryStats.avgMomGrowth > 0 ? (
+                    <TrendingUp className="h-3 w-3 text-green-500" />
+                  ) : (
+                    <TrendingDown className="h-3 w-3 text-red-500" />
+                  )}
+                  <span className={`text-xs font-medium ${
+                    summaryStats.avgMomGrowth > 0 ? 'text-green-600' : 'text-red-600'
+                  }`}>
+                    {formatPercentage(summaryStats.avgMomGrowth)} MoM
+                  </span>
                 </div>
               </div>
               <div className="p-3 bg-green-500/10 rounded-xl">
@@ -266,11 +325,27 @@ export function FluxAnalysis() {
               <div>
                 <p className="text-sm font-medium text-text-secondary">Operating Expenses</p>
                 <p className="text-2xl font-bold text-text-primary">
-                  ${summaryStats.totalExpenses.toLocaleString('en-US', { minimumFractionDigits: 0 })}
+                  ${formatCurrency(summaryStats.totalExpenses)}
                 </p>
                 <div className="flex items-center gap-1 mt-1">
-                  <TrendingUp className="h-3 w-3 text-orange-500" />
-                  <span className="text-xs text-orange-600 font-medium">+{fluxData.find(d => d.category === 'Operating Expenses')?.momDelta.toFixed(1)}% MoM</span>
+                  {(() => {
+                    const operatingExpenses = fluxData.find(d => d.category === 'Operating Expenses');
+                    const momDelta = operatingExpenses?.momDelta || 0;
+                    return (
+                      <>
+                        {momDelta > 0 ? (
+                          <TrendingUp className="h-3 w-3 text-orange-500" />
+                        ) : (
+                          <TrendingDown className="h-3 w-3 text-blue-500" />
+                        )}
+                        <span className={`text-xs font-medium ${
+                          momDelta > 0 ? 'text-orange-600' : 'text-blue-600'
+                        }`}>
+                          {formatPercentage(momDelta)} MoM
+                        </span>
+                      </>
+                    );
+                  })()}
                 </div>
               </div>
               <div className="p-3 bg-orange-500/10 rounded-xl">
@@ -284,11 +359,27 @@ export function FluxAnalysis() {
               <div>
                 <p className="text-sm font-medium text-text-secondary">Net Income</p>
                 <p className="text-2xl font-bold text-text-primary">
-                  ${summaryStats.netIncome.toLocaleString('en-US', { minimumFractionDigits: 0 })}
+                  ${formatCurrency(summaryStats.netIncome)}
                 </p>
                 <div className="flex items-center gap-1 mt-1">
-                  <TrendingUp className="h-3 w-3 text-blue-500" />
-                  <span className="text-xs text-blue-600 font-medium">+{fluxData.find(d => d.category === 'Net Income')?.momDelta.toFixed(1)}% MoM</span>
+                  {(() => {
+                    const netIncome = fluxData.find(d => d.category === 'Net Income');
+                    const momDelta = netIncome?.momDelta || 0;
+                    return (
+                      <>
+                        {momDelta > 0 ? (
+                          <TrendingUp className="h-3 w-3 text-blue-500" />
+                        ) : (
+                          <TrendingDown className="h-3 w-3 text-red-500" />
+                        )}
+                        <span className={`text-xs font-medium ${
+                          momDelta > 0 ? 'text-blue-600' : 'text-red-600'
+                        }`}>
+                          {formatPercentage(momDelta)} MoM
+                        </span>
+                      </>
+                    );
+                  })()}
                 </div>
               </div>
               <div className="p-3 bg-blue-500/10 rounded-xl">
@@ -301,8 +392,10 @@ export function FluxAnalysis() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-text-secondary">Avg MoM Growth</p>
-                <p className="text-2xl font-bold text-text-primary">
-                  {summaryStats.avgMomGrowth > 0 ? '+' : ''}{summaryStats.avgMomGrowth}%
+                <p className={`text-2xl font-bold ${
+                  summaryStats.avgMomGrowth > 0 ? 'text-green-600' : 'text-red-600'
+                }`}>
+                  {formatPercentage(summaryStats.avgMomGrowth)}
                 </p>
                 <div className="flex items-center gap-1 mt-1">
                   <BarChart3 className="h-3 w-3 text-purple-500" />
@@ -319,8 +412,10 @@ export function FluxAnalysis() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-text-secondary">Avg YoY Growth</p>
-                <p className="text-2xl font-bold text-text-primary">
-                  {summaryStats.avgYoyGrowth > 0 ? '+' : ''}{summaryStats.avgYoyGrowth}%
+                <p className={`text-2xl font-bold ${
+                  summaryStats.avgYoyGrowth > 0 ? 'text-green-600' : 'text-red-600'
+                }`}>
+                  {formatPercentage(summaryStats.avgYoyGrowth)}
                 </p>
                 <div className="flex items-center gap-1 mt-1">
                   <LineChart className="h-3 w-3 text-indigo-500" />
@@ -354,16 +449,16 @@ export function FluxAnalysis() {
                     <div>
                       <div className="font-medium text-text-primary">{item.category}</div>
                       <div className="text-xs text-text-secondary">
-                        ${item.current.toLocaleString()} current
+                        ${formatCurrency(item.current)} current
                       </div>
                     </div>
                   </div>
                   <div className="text-right">
                     <div className="text-lg font-bold text-green-600">
-                      +{item.momDelta.toFixed(1)}%
+                      {formatPercentage(item.momDelta)}
                     </div>
                     <div className="text-xs text-text-secondary">
-                      from ${item.prior.toLocaleString()}
+                      from ${formatCurrency(item.prior)}
                     </div>
                   </div>
                 </div>
@@ -389,16 +484,16 @@ export function FluxAnalysis() {
                     <div>
                       <div className="font-medium text-text-primary">{item.category}</div>
                       <div className="text-xs text-text-secondary">
-                        ${item.current.toLocaleString()} current
+                        ${formatCurrency(item.current)} current
                       </div>
                     </div>
                   </div>
                   <div className="text-right">
                     <div className="text-lg font-bold text-red-600">
-                      {item.momDelta.toFixed(1)}%
+                      {formatPercentage(item.momDelta)}
                     </div>
                     <div className="text-xs text-text-secondary">
-                      from ${item.prior.toLocaleString()}
+                      from ${formatCurrency(item.prior)}
                     </div>
                   </div>
                 </div>
@@ -462,19 +557,18 @@ export function FluxAnalysis() {
                   </div>
 
                   <div className="text-right font-medium text-text-primary">
-                    ${row.current.toLocaleString('en-US', { minimumFractionDigits: 0 })}
+                    ${formatCurrency(row.current)}
                   </div>
 
                   <div className="text-right text-text-secondary">
-                    ${row.prior.toLocaleString('en-US', { minimumFractionDigits: 0 })}
+                    ${formatCurrency(row.prior)}
                   </div>
 
                   <div className="text-right">
                     <span className={`font-medium ${
                       row.current - row.prior > 0 ? 'text-green-600' : 'text-red-600'
                     }`}>
-                      {row.current - row.prior > 0 ? '+' : ''}
-                      ${(row.current - row.prior).toLocaleString('en-US', { minimumFractionDigits: 0 })}
+                      {formatCurrency(row.current - row.prior)}
                     </span>
                   </div>
 
@@ -483,7 +577,7 @@ export function FluxAnalysis() {
                       variant={row.momDelta > 0 ? 'success' : row.momDelta < 0 ? 'warning' : 'neutral'}
                       className="text-xs font-medium"
                     >
-                      {row.momDelta > 0 ? '+' : ''}{row.momDelta.toFixed(1)}%
+                      {formatPercentage(row.momDelta)}
                     </Badge>
                   </div>
 
@@ -492,7 +586,7 @@ export function FluxAnalysis() {
                       variant={row.yoyDelta > 0 ? 'success' : row.yoyDelta < 0 ? 'warning' : 'neutral'}
                       className="text-xs font-medium"
                     >
-                      {row.yoyDelta > 0 ? '+' : ''}{row.yoyDelta.toFixed(1)}%
+                      {formatPercentage(row.yoyDelta)}
                     </Badge>
                   </div>
 

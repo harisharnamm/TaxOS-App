@@ -118,11 +118,11 @@ export function ForgotPassword() {
             /* Form */
             <>
               {/* Header */}
-              <div className="animate-element animate-delay-100 text-center">
-                <h1 className="text-4xl font-semibold leading-tight text-gray-900 mb-2">
+              <div className="animate-element animate-delay-100">
+                <h1 className="text-5xl font-light text-gray-900 tracking-tighter mb-8">
                   Forgot your password?
                 </h1>
-                <p className="text-gray-700">
+                <p className="text-muted-foreground">
                   Enter your email address and we'll send you a link to reset your password.
                 </p>
               </div>
