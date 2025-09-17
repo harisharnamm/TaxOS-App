@@ -21,6 +21,10 @@ export function SignIn() {
         console.log('🔄 Checking for OAuth callback...');
         console.log('🔄 Current URL:', window.location.href);
         
+        // Check if OAuth is in progress
+        const oauthInProgress = sessionStorage.getItem('oauth_in_progress');
+        console.log('🔄 OAuth in progress flag:', oauthInProgress);
+        
         // Check if we have OAuth callback parameters in the URL
         const urlParams = new URLSearchParams(window.location.search);
         const hashParams = new URLSearchParams(window.location.hash.substring(1));
@@ -28,11 +32,14 @@ export function SignIn() {
         console.log('🔄 URL params:', Object.fromEntries(urlParams));
         console.log('🔄 Hash params:', Object.fromEntries(hashParams));
         
-        if (urlParams.get('code') || hashParams.get('access_token') || hashParams.get('code')) {
-          console.log('🔄 OAuth callback detected in URL');
+        if (urlParams.get('code') || hashParams.get('access_token') || hashParams.get('code') || oauthInProgress) {
+          console.log('🔄 OAuth callback detected in URL or OAuth in progress');
+          
+          // Clear the OAuth in progress flag
+          sessionStorage.removeItem('oauth_in_progress');
           
           // Wait a bit for Supabase to process the callback
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          await new Promise(resolve => setTimeout(resolve, 2000));
           
           // Force a session refresh to pick up the OAuth session
           const { data, error } = await supabase.auth.getSession();
@@ -194,6 +201,7 @@ export function SignIn() {
         options: {
           // Let Supabase Auth use the configured site URL to avoid expired preview redirects
           queryParams: { prompt: 'select_account' },
+          redirectTo: window.location.origin + '/signin', // Explicitly set redirect URL
         },
       });
 
@@ -205,6 +213,9 @@ export function SignIn() {
       }
 
       console.log('✅ Google sign-in initiated:', data?.url ? 'redirecting' : 'using popup');
+      
+      // Set a flag to indicate OAuth is in progress
+      sessionStorage.setItem('oauth_in_progress', 'true');
     } catch (err: any) {
       console.error('❌ Unexpected Google sign-in error:', err);
       setError(err?.message || 'An unexpected error occurred while starting Google sign-in');
