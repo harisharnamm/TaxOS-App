@@ -39,11 +39,20 @@ function AppContent() {
   // Handle OAuth callback at app level
   useEffect(() => {
     const handleOAuthCallback = async () => {
+      console.log('🔄 App-level OAuth callback check');
+      console.log('🔄 Current URL:', window.location.href);
+      
       const urlParams = new URLSearchParams(window.location.search);
       const hashParams = new URLSearchParams(window.location.hash.substring(1));
       
-      if (urlParams.get('code') || hashParams.get('access_token') || hashParams.get('code')) {
-        console.log('🔄 App-level OAuth callback detected');
+      console.log('🔄 URL params:', Object.fromEntries(urlParams));
+      console.log('🔄 Hash params:', Object.fromEntries(hashParams));
+      
+      // Check for OAuth callback parameters
+      const hasOAuthParams = urlParams.get('code') || hashParams.get('access_token') || hashParams.get('code');
+      
+      if (hasOAuthParams) {
+        console.log('🔄 OAuth callback parameters detected');
         
         // Wait for Supabase to process the callback
         await new Promise(resolve => setTimeout(resolve, 2000));
@@ -62,10 +71,41 @@ function AppContent() {
           window.history.replaceState({}, document.title, '/');
           window.location.href = '/';
         }
+      } else {
+        // No OAuth params, but check if we have a session anyway
+        console.log('🔄 No OAuth params, checking existing session');
+        
+        const { data, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error('❌ Session check error:', error);
+          return;
+        }
+        
+        if (data.session?.user) {
+          console.log('✅ User already authenticated:', data.session.user.email);
+          // Redirect to dashboard if we're on signin page
+          if (window.location.pathname === '/signin') {
+            window.location.href = '/';
+          }
+        }
       }
     };
 
     handleOAuthCallback();
+    
+    // Also check for session changes periodically in case OAuth completed
+    const sessionCheckInterval = setInterval(async () => {
+      const { data } = await supabase.auth.getSession();
+      if (data.session?.user && window.location.pathname === '/signin') {
+        console.log('✅ Periodic session check found authenticated user, redirecting');
+        window.location.href = '/';
+        clearInterval(sessionCheckInterval);
+      }
+    }, 1000);
+    
+    // Clear interval after 10 seconds
+    setTimeout(() => clearInterval(sessionCheckInterval), 10000);
   }, []);
   
   useEffect(() => {
