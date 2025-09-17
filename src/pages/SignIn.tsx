@@ -55,6 +55,8 @@ export function SignIn() {
             // Clear any error states
             setError(null);
             setConnectionError(false);
+            // Show preloader only after successful authentication
+            setShowPreloader(true);
             // Force a page reload to ensure auth state is properly set
             window.location.href = '/';
             return;
@@ -126,6 +128,8 @@ export function SignIn() {
   // Handle forced navigation when user exists despite connection issues
   useEffect(() => {
     if (user) {
+      // Show preloader when user is authenticated and we're about to redirect
+      setShowPreloader(true);
       // Redirect to the page they were trying to access, or dashboard
       const from = (location as any).state?.from || '/';
       console.log('✅ User exists in SignIn, forcing navigation to dashboard');
@@ -138,7 +142,6 @@ export function SignIn() {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
-    setShowPreloader(true);
 
     // Prevent sign-in attempts if there's a connection error
     if (connectionError) {
@@ -174,6 +177,8 @@ export function SignIn() {
         setShowPreloader(false);
       } else {
         console.log('✅ Sign in successful, navigating to dashboard');
+        // Show preloader only after successful authentication
+        setShowPreloader(true);
         // Don't navigate here - let the useEffect handle it when user state updates
         // Navigation will happen automatically via auth state change
       }
@@ -193,7 +198,6 @@ export function SignIn() {
 
     try {
       setError(null);
-      setShowPreloader(true);
       console.log('🔄 Redirecting to Google OAuth...');
 
       const { data, error } = await supabase.auth.signInWithOAuth({
@@ -208,7 +212,6 @@ export function SignIn() {
       if (error) {
         console.error('❌ Google sign-in error:', error.message);
         setError(error.message);
-        setShowPreloader(false);
         return;
       }
 
@@ -219,7 +222,6 @@ export function SignIn() {
     } catch (err: any) {
       console.error('❌ Unexpected Google sign-in error:', err);
       setError(err?.message || 'An unexpected error occurred while starting Google sign-in');
-      setShowPreloader(false);
     }
   };
 
