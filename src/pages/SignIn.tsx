@@ -14,6 +14,57 @@ export function SignIn() {
   const [connectionError, setConnectionError] = useState(false);
   const { setShowPreloader } = usePreloader();
 
+  // Handle OAuth callback
+  useEffect(() => {
+    const handleOAuthCallback = async () => {
+      try {
+        console.log('🔄 Checking for OAuth callback...');
+        
+        // Check if we have OAuth callback parameters in the URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        
+        if (urlParams.get('code') || hashParams.get('access_token') || hashParams.get('code')) {
+          console.log('🔄 OAuth callback detected in URL');
+          
+          // Force a session refresh to pick up the OAuth session
+          const { data, error } = await supabase.auth.getSession();
+          
+          if (error) {
+            console.error('❌ OAuth callback error:', error);
+            setError('Authentication failed. Please try again.');
+            return;
+          }
+          
+          if (data.session?.user) {
+            console.log('✅ OAuth callback successful, user:', data.session.user.email);
+            // Clear any error states
+            setError(null);
+            setConnectionError(false);
+            // The auth state change will be handled by the useAuth hook
+          }
+        } else {
+          // Regular session check
+          const { data, error } = await supabase.auth.getSession();
+          
+          if (error) {
+            console.error('❌ Session check error:', error);
+            return;
+          }
+          
+          if (data.session?.user) {
+            console.log('✅ User already authenticated:', data.session.user.email);
+          }
+        }
+      } catch (err) {
+        console.error('❌ OAuth callback error:', err);
+      }
+    };
+
+    // Check for OAuth callback on component mount
+    handleOAuthCallback();
+  }, []);
+
   // Listen for Supabase connection events
   useEffect(() => {
     const handleConnectionError = () => {
@@ -43,10 +94,12 @@ export function SignIn() {
 
   // Redirect if user is already authenticated
   useEffect(() => {
+    console.log('🔄 Auth state check:', { user: !!user, loading, userEmail: user?.email });
+    
     if (user && !loading) {
       // Redirect to the page they were trying to access, or dashboard
       const from = (location as any).state?.from || '/';
-      console.log('✅ User already authenticated, redirecting to dashboard');
+      console.log('✅ User already authenticated, redirecting to dashboard from:', from);
       navigate(from, { replace: true });
     }
   }, [user, loading, navigate, location]);

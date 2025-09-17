@@ -64,10 +64,11 @@ export function useAuth() {
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('🔄 Auth state changed:', event, session?.user?.email);
+        console.log('🔄 Auth state changed:', event, session?.user?.email, 'mounted:', mounted);
         
         if (mounted) {
           if (session?.user) {
+            console.log('✅ Setting authenticated user:', session.user.email);
             setAuthState(prev => ({ 
               ...prev, 
               session, 
@@ -77,6 +78,7 @@ export function useAuth() {
             // Try to fetch profile, but don't block on it
             fetchProfile(session.user.id);
           } else {
+            console.log('❌ No session, clearing auth state');
             setAuthState(prev => ({ ...prev, session, user: null, profile: null, loading: false }));
           }
         }
