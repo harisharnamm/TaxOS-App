@@ -53,6 +53,12 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
     return <>{children}</>;
   }
 
+  // If we're still loading and haven't timed out, show loading
+  if (loading && !timeoutReached && !connectionError) {
+    console.log('🔄 Auth still loading...');
+    return <div>Loading...</div>;
+  }
+
   // If timeout reached, connection error, and still loading, redirect to sign in
   if ((timeoutReached || connectionError) && loading) {
     console.log('❌ Auth timeout reached, redirecting to sign in');
@@ -60,7 +66,7 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
   }
 
   // No user after loading is complete
-  if (!user) {
+  if (!user && !loading) {
     console.log('❌ No user found, redirecting to sign in');
     return <Navigate to="/signin" state={{ from: location.pathname }} replace />;
   }

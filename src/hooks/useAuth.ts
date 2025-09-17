@@ -107,12 +107,19 @@ export function useAuth() {
         if (mounted) {
           if (session?.user) {
             console.log('✅ Setting authenticated user:', session.user.email);
-            setAuthState(prev => ({ 
-              ...prev, 
-              session, 
-              user: session.user, 
-              loading: false // Always set loading false when we get auth state change
-            }));
+            setAuthState(prev => {
+              // Prevent unnecessary re-renders if user is already set
+              if (prev.user?.id === session.user.id) {
+                console.log('🔄 User already set, skipping state update');
+                return prev;
+              }
+              return { 
+                ...prev, 
+                session, 
+                user: session.user, 
+                loading: false // Always set loading false when we get auth state change
+              };
+            });
             // Try to fetch profile, but don't block on it
             fetchProfile(session.user.id);
             

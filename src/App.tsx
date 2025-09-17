@@ -94,30 +94,22 @@ function AppContent() {
 
     handleOAuthCallback();
     
-    // More aggressive session checking for OAuth callbacks
+    // Periodic session checking for OAuth callbacks (reduced frequency)
     const sessionCheckInterval = setInterval(async () => {
-      console.log('🔄 Periodic session check...');
       const { data, error } = await supabase.auth.getSession();
-      
-      console.log('🔄 Periodic check result:', { 
-        hasSession: !!data.session, 
-        hasUser: !!data.session?.user, 
-        userEmail: data.session?.user?.email,
-        error: error?.message 
-      });
       
       if (data.session?.user && window.location.pathname === '/signin') {
         console.log('✅ Periodic session check found authenticated user, redirecting');
         window.location.href = '/';
         clearInterval(sessionCheckInterval);
       }
-    }, 2000); // Check every 2 seconds
+    }, 5000); // Check every 5 seconds (reduced from 2 seconds)
     
-    // Clear interval after 30 seconds
+    // Clear interval after 20 seconds (reduced from 30 seconds)
     setTimeout(() => {
       console.log('🔄 Stopping periodic session checks');
       clearInterval(sessionCheckInterval);
-    }, 30000);
+    }, 20000);
   }, []);
   
   useEffect(() => {
