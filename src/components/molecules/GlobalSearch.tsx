@@ -14,7 +14,7 @@ import {
 import { Input } from '../atoms/Input';
 import { Button } from '../atoms/Button';
 import { useGlobalSearch, SearchResult, SearchResultType } from '../../hooks/useGlobalSearch';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 
 interface GlobalSearchProps {
   isOpen: boolean;

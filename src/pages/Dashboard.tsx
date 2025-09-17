@@ -6,13 +6,12 @@ import { useClients } from '../hooks/useClients';
 import { usePreloader } from '../contexts/PreloaderContext';
 import { useToast } from '../contexts/ToastContext';
 import { Tooltip } from '../components/ui/tooltip';
-import { Skeleton, SkeletonText } from '../components/ui/skeleton';
+import { Skeleton } from '../components/ui/skeleton';
 import { CreateTaskDialog } from '../components/ui/create-task-dialog';
 import { GlobalSearch } from '../components/molecules/GlobalSearch';
 import { useSearch } from '../contexts/SearchContext';
 import { TopBar } from '../components/organisms/TopBar';
 
-import { Input } from '../components/atoms/Input';
 import { Button } from '../components/atoms/Button';
 import { Badge } from '../components/atoms/Badge';
 import {
@@ -20,11 +19,9 @@ import {
   FileText,
   AlertTriangle,
   Calendar,
-  Search,
   Plus,
   Clock,
   TrendingUp,
-  TrendingDown,
   CheckCircle,
   RotateCcw,
   MessageSquare,
@@ -34,12 +31,7 @@ import {
   Target,
   Activity,
   BarChart3,
-  PieChart,
   ArrowUpRight,
-  ArrowDownRight,
-  Globe,
-  Building2,
-  ChevronDown,
   RefreshCw,
   Star,
   Award,
@@ -53,18 +45,7 @@ import {
   Briefcase,
   Lightbulb,
   Rocket,
-  Shield,
-  Database,
-  Workflow,
-  BookOpen,
-  Calculator,
-  FileCheck,
-  CreditCard,
-  Receipt,
-  LineChart,
-  PieChartIcon,
-  BarChart,
-  Layers
+  Shield
 } from 'lucide-react';
 
 export function Dashboard() {

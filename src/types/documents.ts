@@ -16,13 +16,13 @@ export interface Document {
   is_processed: boolean;
   created_at: string;
   updated_at: string;
-  ai_analysis_response?: any;
+  ai_analysis_response?: unknown;
   // Additional properties from database
   eden_ai_classification?: string;
-  classification_api_response?: any;
-  financial_processing_response?: any;
-  identity_processing_response?: any;
-  tax_processing_response?: any;
+  classification_api_response?: unknown;
+  financial_processing_response?: unknown;
+  identity_processing_response?: unknown;
+  tax_processing_response?: unknown;
   processing_status?: string;
   secondary_classification?: string;
   uploaded_via_token?: boolean;

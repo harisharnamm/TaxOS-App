@@ -1,5 +1,5 @@
 import React from 'react';
-import { useEffect } from 'react';
+import { useEffect, Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { SidebarProvider, useSidebar } from './contexts/SidebarContext';
@@ -8,26 +8,28 @@ import { ToastProvider } from './contexts/ToastContext';
 import { PreloaderProvider } from './contexts/PreloaderContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { Sidebar } from './components/organisms/Sidebar';
-import { Dashboard } from './pages/Dashboard';
-import { Clients } from './pages/Clients';
-import { ClientDetail } from './pages/ClientDetail';
-import { Tasks } from './pages/Tasks';
-import { Transactions } from './pages/Transactions';
-import { TransactionMatching } from './pages/Reconciliation';
-import { Workpapers } from './pages/Workpapers';
-import { Vendors } from './pages/Vendors';
-import { MyZone } from './pages/MyZone';
-import { DocumentManagement } from './pages/DocumentManagement';
-import { AIAssistant } from './pages/AIAssistant';
-import { Settings } from './pages/SettingsPage';
-import { ClientCommunications } from './pages/ClientCommunications';
-import { FluxAnalysis } from './pages/Analytics';
-import ClientUpload from './pages/ClientUpload';
-import { OpenBankingCallback } from './pages/OpenBankingCallback';
-import { SignIn } from './pages/SignIn';
-import { SignUp } from './pages/SignUp';
-import { ForgotPassword } from './pages/ForgotPassword';
-import { ResetPassword } from './pages/ResetPassword';
+
+// Lazy-loaded pages (wrap named exports)
+const Dashboard = lazy(() => import('./pages/Dashboard').then(m => ({ default: m.Dashboard })));
+const Clients = lazy(() => import('./pages/Clients').then(m => ({ default: m.Clients })));
+const ClientDetail = lazy(() => import('./pages/ClientDetail').then(m => ({ default: m.ClientDetail })));
+const Tasks = lazy(() => import('./pages/Tasks').then(m => ({ default: m.Tasks })));
+const Transactions = lazy(() => import('./pages/Transactions').then(m => ({ default: m.Transactions })));
+const TransactionMatching = lazy(() => import('./pages/Reconciliation').then(m => ({ default: m.TransactionMatching })));
+const Workpapers = lazy(() => import('./pages/Workpapers').then(m => ({ default: m.Workpapers })));
+const Vendors = lazy(() => import('./pages/Vendors').then(m => ({ default: m.Vendors })));
+const MyZone = lazy(() => import('./pages/MyZone').then(m => ({ default: m.MyZone })));
+const DocumentManagement = lazy(() => import('./pages/DocumentManagement').then(m => ({ default: m.DocumentManagement })));
+const AIAssistant = lazy(() => import('./pages/AIAssistant').then(m => ({ default: m.AIAssistant })));
+const Settings = lazy(() => import('./pages/SettingsPage').then(m => ({ default: m.Settings })));
+const ClientCommunications = lazy(() => import('./pages/ClientCommunications').then(m => ({ default: m.ClientCommunications })));
+const FluxAnalysis = lazy(() => import('./pages/Analytics').then(m => ({ default: m.FluxAnalysis })));
+const ClientUpload = lazy(() => import('./pages/ClientUpload'));
+// const OpenBankingCallback = lazy(() => import('./pages/OpenBankingCallback').then(m => ({ default: m.OpenBankingCallback })));
+const SignIn = lazy(() => import('./pages/SignIn').then(m => ({ default: m.SignIn })));
+const SignUp = lazy(() => import('./pages/SignUp').then(m => ({ default: m.SignUp })));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword').then(m => ({ default: m.ForgotPassword })));
+const ResetPassword = lazy(() => import('./pages/ResetPassword').then(m => ({ default: m.ResetPassword })));
 
 
 function AppContent() {
@@ -44,134 +46,190 @@ function AppContent() {
     </MainLayout>
   );
 
+  const Fallback = <div className="p-6 text-muted-foreground">Loading…</div>;
+
   return (
     <Routes>
       {/* Authentication routes - full width without sidebar */}
-      <Route path="/signin" element={<SignIn />} />
-      <Route path="/signup" element={<SignUp />} />
-      <Route path="/forgot-password" element={<ForgotPassword />} />
-      <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/signin" element={
+        <Suspense fallback={Fallback}>
+          <SignIn />
+        </Suspense>
+      } />
+      <Route path="/signup" element={
+        <Suspense fallback={Fallback}>
+          <SignUp />
+        </Suspense>
+      } />
+      <Route path="/forgot-password" element={
+        <Suspense fallback={Fallback}>
+          <ForgotPassword />
+        </Suspense>
+      } />
+      <Route path="/reset-password" element={
+        <Suspense fallback={Fallback}>
+          <ResetPassword />
+        </Suspense>
+      } />
       
       {/* Client upload route - public access */}
-      <Route path="/upload/:token" element={<ClientUpload />} />
+      <Route path="/upload/:token" element={
+        <Suspense fallback={Fallback}>
+          <ClientUpload />
+        </Suspense>
+      } />
       
       {/* Main app routes - with sidebar */}
       <Route path="/" element={
         <ProtectedRoute>
           <AppLayout>
-            <Dashboard />
+            <Suspense fallback={Fallback}>
+              <Dashboard />
+            </Suspense>
           </AppLayout>
         </ProtectedRoute>
       } />
       <Route path="/clients" element={
         <ProtectedRoute>
           <AppLayout>
-            <Clients />
+            <Suspense fallback={Fallback}>
+              <Clients />
+            </Suspense>
           </AppLayout>
         </ProtectedRoute>
       } />
       <Route path="/clients/:id" element={
         <ProtectedRoute>
           <AppLayout>
-            <ClientDetail />
+            <Suspense fallback={Fallback}>
+              <ClientDetail />
+            </Suspense>
           </AppLayout>
         </ProtectedRoute>
       } />
       <Route path="/tasks" element={
         <ProtectedRoute>
           <AppLayout>
-            <Tasks />
+            <Suspense fallback={Fallback}>
+              <Tasks />
+            </Suspense>
           </AppLayout>
         </ProtectedRoute>
       } />
       <Route path="/transactions" element={
         <ProtectedRoute>
           <AppLayout>
-            <Transactions />
+            <Suspense fallback={Fallback}>
+              <Transactions />
+            </Suspense>
           </AppLayout>
         </ProtectedRoute>
       } />
       <Route path="/vendors" element={
         <ProtectedRoute>
           <AppLayout>
-            <Vendors />
+            <Suspense fallback={Fallback}>
+              <Vendors />
+            </Suspense>
           </AppLayout>
         </ProtectedRoute>
       } />
       <Route path="/transaction-matching" element={
         <ProtectedRoute>
           <AppLayout>
-            <TransactionMatching />
+            <Suspense fallback={Fallback}>
+              <TransactionMatching />
+            </Suspense>
           </AppLayout>
         </ProtectedRoute>
       } />
       <Route path="/transaction-matching/:clientId" element={
         <ProtectedRoute>
           <AppLayout>
-            <TransactionMatching />
+            <Suspense fallback={Fallback}>
+              <TransactionMatching />
+            </Suspense>
           </AppLayout>
         </ProtectedRoute>
       } />
       <Route path="/my-zone" element={
         <ProtectedRoute>
           <AppLayout>
-            <MyZone />
+            <Suspense fallback={Fallback}>
+              <MyZone />
+            </Suspense>
           </AppLayout>
         </ProtectedRoute>
       } />
       <Route path="/irs-notices" element={
         <ProtectedRoute>
           <AppLayout>
-            <DocumentManagement />
+            <Suspense fallback={Fallback}>
+              <DocumentManagement />
+            </Suspense>
           </AppLayout>
         </ProtectedRoute>
       } />
       <Route path="/ai-assistant" element={
         <ProtectedRoute>
           <AppLayout>
-            <AIAssistant />
+            <Suspense fallback={Fallback}>
+              <AIAssistant />
+            </Suspense>
           </AppLayout>
         </ProtectedRoute>
       } />
       <Route path="/transactions/analytics" element={
         <ProtectedRoute>
           <AppLayout>
-            <FluxAnalysis />
+            <Suspense fallback={Fallback}>
+              <FluxAnalysis />
+            </Suspense>
           </AppLayout>
         </ProtectedRoute>
       } />
       <Route path="/transactions/analytics/:clientId" element={
         <ProtectedRoute>
           <AppLayout>
-            <FluxAnalysis />
+            <Suspense fallback={Fallback}>
+              <FluxAnalysis />
+            </Suspense>
           </AppLayout>
         </ProtectedRoute>
       } />
       <Route path="/workpapers" element={
         <ProtectedRoute>
           <AppLayout>
-            <Workpapers />
+            <Suspense fallback={Fallback}>
+              <Workpapers />
+            </Suspense>
           </AppLayout>
         </ProtectedRoute>
       } />
       <Route path="/workpapers/:clientId" element={
         <ProtectedRoute>
           <AppLayout>
-            <Workpapers />
+            <Suspense fallback={Fallback}>
+              <Workpapers />
+            </Suspense>
           </AppLayout>
         </ProtectedRoute>
       } />
       <Route path="/client-communications" element={
         <ProtectedRoute>
           <AppLayout>
-            <ClientCommunications />
+            <Suspense fallback={Fallback}>
+              <ClientCommunications />
+            </Suspense>
           </AppLayout>
         </ProtectedRoute>
       } />
       <Route path="/settings" element={
         <ProtectedRoute>
           <AppLayout>
-            <Settings />
+            <Suspense fallback={Fallback}>
+              <Settings />
+            </Suspense>
           </AppLayout>
         </ProtectedRoute>
       } />

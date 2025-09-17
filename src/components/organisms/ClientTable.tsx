@@ -1,4 +1,4 @@
-import { MoreHorizontal, Mail, Phone, Users2, Edit, Trash2, FileText, Send, Eye } from 'lucide-react';
+import { Mail, Phone, Users2, Edit, Trash2, Send, Eye } from 'lucide-react';
 import { ClientWithDocuments } from '../../hooks/useClients';
 import { Button } from '../atoms/Button';
 import { Badge } from '../atoms/Badge';

@@ -317,3 +317,4 @@ export function useClientComparison(period: string) {
 
   return { comparison, loading };
 }
+

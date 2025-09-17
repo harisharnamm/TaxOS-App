@@ -1,3 +1,34 @@
+import * as Sentry from "https://esm.sh/@sentry/deno@8.26.0";
+
+Sentry.init({
+  dsn: Deno.env.get('SENTRY_DSN') ?? 'https://bf93d5a17da3c7577f6dce227113d313@o4509583266021376.ingest.de.sentry.io/4510030644772944',
+  environment: Deno.env.get('SENTRY_ENV') ?? 'development',
+  tracesSampleRate: Number(Deno.env.get('SENTRY_TRACES_SAMPLE_RATE') ?? '0.1'),
+});
+
+self.addEventListener('unhandledrejection', (event) => {
+  try { Sentry.captureException(event.reason); } catch (_) {}
+});
+self.addEventListener('error', (event) => {
+  try { Sentry.captureException(event.error ?? new Error(event.message)); } catch (_) {}
+});
+
+// Utilities: request ID & PII masking
+function generateRequestId(): string {
+  return crypto.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+function maskPII(input: unknown): string {
+  try {
+    const str = typeof input === 'string' ? input : JSON.stringify(input);
+    return str
+      .replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, '[email]')
+      .replace(/(authorization:\s*bearer\s+)[a-z0-9._-]+/gi, '$1[token]')
+      .replace(/(api[-_ ]?key|secret|token)[=:"'\s]+[^\s,"']+/gi, '$1=[redacted]');
+  } catch {
+    return '[unserializable]';
+  }
+}
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -421,15 +452,18 @@ async function fetchAndProcessTransactions(customerId: string, accountIds?: stri
 
 // Serve the function
 serve(async (req) => {
+  const requestId = generateRequestId();
+  const baseHeaders = { ...corsHeaders, 'X-Request-ID': requestId } as Record<string, string>;
+
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return new Response("ok", { headers: baseHeaders });
   }
 
   try {
     if (req.method !== "POST") {
-      return new Response(JSON.stringify({ error: "Method not allowed" }), {
+      return new Response(JSON.stringify({ error: "Method not allowed", request_id: requestId }), {
         status: 405,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...baseHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -437,9 +471,9 @@ serve(async (req) => {
     const { action, customerId, accountIds, webhookEvent } = body;
 
     if (!action) {
-      return new Response(JSON.stringify({ error: "Missing action parameter" }), {
+      return new Response(JSON.stringify({ error: "Missing action parameter", request_id: requestId }), {
         status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...baseHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -448,9 +482,9 @@ serve(async (req) => {
     switch (action) {
       case 'fetch_transactions':
         if (!customerId) {
-          return new Response(JSON.stringify({ error: "Missing customerId for fetch_transactions" }), {
+          return new Response(JSON.stringify({ error: "Missing customerId for fetch_transactions", request_id: requestId }), {
             status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            headers: { ...baseHeaders, "Content-Type": "application/json" },
           });
         }
         result = await fetchAndProcessTransactions(customerId, accountIds);
@@ -458,36 +492,39 @@ serve(async (req) => {
 
       case 'webhook':
         if (!webhookEvent) {
-          return new Response(JSON.stringify({ error: "Missing webhookEvent for webhook action" }), {
+          return new Response(JSON.stringify({ error: "Missing webhookEvent for webhook action", request_id: requestId }), {
             status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            headers: { ...baseHeaders, "Content-Type": "application/json" },
           });
         }
         await handleTxPushWebhook(webhookEvent);
-        result = { success: true, message: 'Webhook processed successfully' };
+        result = { success: true, message: 'Webhook processed successfully', request_id: requestId };
         break;
 
       default:
-        return new Response(JSON.stringify({ error: "Invalid action. Use 'fetch_transactions' or 'webhook'" }), {
+        return new Response(JSON.stringify({ error: "Invalid action. Use 'fetch_transactions' or 'webhook'", request_id: requestId }), {
           status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...baseHeaders, "Content-Type": "application/json" },
         });
     }
 
-    return new Response(JSON.stringify(result), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    return new Response(JSON.stringify({ ...result, request_id: requestId }), {
+      headers: { ...baseHeaders, "Content-Type": "application/json" },
     });
 
   } catch (error) {
-    console.error("finicity-transactions error:", error);
+    try { Sentry.captureException(error, { extra: { request_id: requestId } }); } catch (_) {}
+    await Sentry.flush(2000);
+    console.error(`[${requestId}] finicity-transactions error:`, maskPII((error as any)?.message || error));
     return new Response(
       JSON.stringify({ 
         error: "Internal server error", 
-        details: (error as Error).message 
+        details: (error as Error).message,
+        request_id: requestId
       }),
       { 
         status: 500, 
-        headers: { ...corsHeaders, "Content-Type": "application/json" } 
+        headers: { ...baseHeaders, "Content-Type": "application/json" } 
       },
     );
   }

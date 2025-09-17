@@ -14,7 +14,7 @@ export async function createDocumentRecord(documentData: {
   document_type: DocumentType;
   storage_path: string;
   tags?: string[];
-}): Promise<{ data: Document | null; error: any }> {
+}): Promise<{ data: Document | null; error: unknown }> {
   const { data, error } = await supabase
     .from('documents')
     .insert([{
@@ -38,7 +38,7 @@ export async function updateDocumentProcessing(
     tags?: string[];
     is_processed?: boolean;
   }
-): Promise<{ data: Document | null; error: any }> {
+): Promise<{ data: Document | null; error: unknown }> {
   const { data, error } = await supabase
     .from('documents')
     .update(updates)
@@ -55,7 +55,7 @@ export async function updateDocumentProcessing(
 export async function getClientDocuments(
   clientId: string,
   filter?: DocumentFilter
-): Promise<{ data: Document[] | null; error: any }> {
+): Promise<{ data: Document[] | null; error: unknown }> {
   let query = supabase
     .from('documents')
     .select('*')
@@ -95,7 +95,7 @@ export async function getClientDocuments(
 export async function getUserDocuments(
   userId: string,
   filter?: DocumentFilter
-): Promise<{ data: Document[] | null; error: any }> {
+): Promise<{ data: Document[] | null; error: unknown }> {
   let query = supabase
     .from('documents')
     .select(`
@@ -142,7 +142,7 @@ export async function getUserDocuments(
 /**
  * Gets a single document by ID
  */
-export async function getDocument(documentId: string): Promise<{ data: Document | null; error: any }> {
+export async function getDocument(documentId: string): Promise<{ data: Document | null; error: unknown }> {
   const { data, error } = await supabase
     .from('documents')
     .select('*')
@@ -177,7 +177,7 @@ export async function createIRSNoticeRecord(noticeData: {
   amount_owed?: number;
   deadline_date?: string;
   priority?: 'low' | 'medium' | 'high' | 'critical';
-}): Promise<{ data: IRSNotice | null; error: any }> {
+}): Promise<{ data: IRSNotice | null; error: unknown }> {
   // Check if a notice already exists for this document
   if (noticeData.document_id) {
     const { data: existingNotice } = await supabase
@@ -213,7 +213,7 @@ export async function createIRSNoticeRecord(noticeData: {
 export async function updateIRSNotice(
   noticeId: string,
   updates: Partial<Omit<IRSNotice, 'id' | 'created_at' | 'updated_at'>>
-): Promise<{ data: IRSNotice | null; error: any }> {
+): Promise<{ data: IRSNotice | null; error: unknown }> {
   const { data, error } = await supabase
     .from('irs_notices')
     .update(updates)
@@ -227,7 +227,7 @@ export async function updateIRSNotice(
 /**
  * Gets IRS notices for a user
  */
-export async function getUserIRSNotices(userId: string): Promise<{ data: EnrichedIRSNotice[] | null; error: any }> {
+export async function getUserIRSNotices(userId: string): Promise<{ data: EnrichedIRSNotice[] | null; error: unknown }> {
   const { data, error } = await supabase
     .from('irs_notices')
     .select(`
@@ -247,7 +247,7 @@ export async function getUserIRSNotices(userId: string): Promise<{ data: Enriche
 /**
  * Gets IRS notices for a specific client
  */
-export async function getClientIRSNotices(clientId: string): Promise<{ data: EnrichedIRSNotice[] | null; error: any }> {
+export async function getClientIRSNotices(clientId: string): Promise<{ data: EnrichedIRSNotice[] | null; error: unknown }> {
   const { data, error } = await supabase
     .from('irs_notices')
     .select(`
@@ -328,7 +328,7 @@ export async function getDocumentAnalytics(userId: string): Promise<{
 export async function bulkUpdateDocuments(
   documentIds: string[],
   updates: Partial<Pick<Document, 'tags' | 'document_type' | 'is_processed'>>
-): Promise<{ data: Document[] | null; error: any }> {
+): Promise<{ data: Document[] | null; error: unknown }> {
   const { data, error } = await supabase
     .from('documents')
     .update(updates)

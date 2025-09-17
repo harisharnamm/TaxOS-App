@@ -182,17 +182,7 @@ export function useAuth() {
         // Set flag for just logged in to trigger preloader
         sessionStorage.setItem('justLoggedIn', 'true');
         
-        // Store auth in localStorage for persistence across tabs/browsers
-        try {
-          localStorage.setItem('supabase.auth.token', JSON.stringify({
-            currentSession: data.session,
-            expiresAt: Math.floor(Date.now() / 1000) + (data.session?.expires_in || 3600)
-          }));
-        } catch (storageError) {
-          console.warn('⚠️ Could not store auth in localStorage:', storageError);
-        }
-        
-        // Auth state change will handle the rest
+        // Rely on Supabase client session persistence. Do not manually store tokens.
         return { data, error: null };
       } else {
         console.error('❌ Sign in returned no user data');

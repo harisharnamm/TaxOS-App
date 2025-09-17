@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const isProd = import.meta.env.MODE === 'production';
 
 // Determine the site URL for auth redirects
 const siteUrl = import.meta.env.VITE_SITE_URL || 
@@ -10,10 +11,14 @@ const siteUrl = import.meta.env.VITE_SITE_URL ||
 // Environment validation completed
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('Missing Supabase environment variables:', {
-    VITE_SUPABASE_URL: !!supabaseUrl,
-    VITE_SUPABASE_ANON_KEY: !!supabaseAnonKey
-  });
+  if (!isProd) {
+    console.error('Missing Supabase environment variables:', {
+      VITE_SUPABASE_URL: !!supabaseUrl,
+      VITE_SUPABASE_ANON_KEY: !!supabaseAnonKey
+    });
+  } else {
+    console.error('Missing Supabase environment variables.');
+  }
   throw new Error('Missing Supabase environment variables. Please check your .env file.');
 }
 
@@ -49,9 +54,13 @@ Promise.race([
   // Initial session check completed
   
   // Return success flag to any listeners
-  window.dispatchEvent(new CustomEvent('supabase:connection:success'));
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('supabase:connection:success'));
+  }
 }).catch((error: Error) => {
-  console.warn('⚠️ Fast connection test failed, trying with longer timeout:', error.message);
+  if (!isProd) {
+    console.warn('⚠️ Fast connection test failed, trying with longer timeout:', error.message);
+  }
   
   // Try again with a longer timeout as backup
   if (connectionTestRunning) {
@@ -65,15 +74,21 @@ Promise.race([
       // Extended session check completed
       
       // Return success flag to any listeners
-      window.dispatchEvent(new CustomEvent('supabase:connection:success'));
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('supabase:connection:success'));
+      }
     }).catch((finalError: Error) => {
       connectionTestRunning = false;
-      console.error('❌ Session check failed after extended timeout:', finalError.message);
+      if (!isProd) {
+        console.error('❌ Session check failed after extended timeout:', finalError.message);
+      }
       
       // Signal connection issue to listeners
-      window.dispatchEvent(new CustomEvent('supabase:connection:error', { 
-        detail: { message: finalError.message } 
-      }));
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('supabase:connection:error', { 
+          detail: { message: isProd ? 'Connection error' : finalError.message } 
+        }));
+      }
     });
   }
 });

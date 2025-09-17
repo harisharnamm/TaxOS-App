@@ -4,6 +4,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { SignInPage } from '../components/ui/sign-in';
 import { useAuthContext } from '../contexts/AuthContext';
 import { usePreloader } from '../contexts/PreloaderContext';
+import { supabase } from '../lib/supabase';
 
 export function SignIn() {
   const navigate = useNavigate();
@@ -44,7 +45,7 @@ export function SignIn() {
   useEffect(() => {
     if (user && !loading) {
       // Redirect to the page they were trying to access, or dashboard
-      const from = location.state?.from || '/';
+      const from = (location as any).state?.from || '/';
       console.log('✅ User already authenticated, redirecting to dashboard');
       navigate(from, { replace: true });
     }
@@ -54,7 +55,7 @@ export function SignIn() {
   useEffect(() => {
     if (user) {
       // Redirect to the page they were trying to access, or dashboard
-      const from = location.state?.from || '/';
+      const from = (location as any).state?.from || '/';
       console.log('✅ User exists in SignIn, forcing navigation to dashboard');
       // Small delay to allow state updates to complete
       const navTimer = setTimeout(() => navigate(from, { replace: true }), 100);
@@ -67,7 +68,7 @@ export function SignIn() {
     setError(null);
     setShowPreloader(true);
 
-        // Prevent sign-in attempts if there's a connection error
+    // Prevent sign-in attempts if there's a connection error
     if (connectionError) {
       console.warn('⚠️ Sign in prevented due to connection error');
       setError('Cannot sign in while offline. Please check your network connection.');
@@ -111,9 +112,39 @@ export function SignIn() {
     }
   };
 
-  const handleGoogleSignIn = () => {
-    console.log('Continue with Google clicked');
-    // TODO: Implement Google OAuth
+  const handleGoogleSignIn = async () => {
+    if (connectionError) {
+      console.warn('⚠️ Google sign-in prevented due to connection error');
+      setError('Cannot sign in with Google while offline. Please check your network connection.');
+      return;
+    }
+
+    try {
+      setError(null);
+      setShowPreloader(true);
+      console.log('🔄 Redirecting to Google OAuth...');
+
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          // Let Supabase Auth use the configured site URL to avoid expired preview redirects
+          queryParams: { prompt: 'select_account' },
+        },
+      });
+
+      if (error) {
+        console.error('❌ Google sign-in error:', error.message);
+        setError(error.message);
+        setShowPreloader(false);
+        return;
+      }
+
+      console.log('✅ Google sign-in initiated:', data?.url ? 'redirecting' : 'using popup');
+    } catch (err: any) {
+      console.error('❌ Unexpected Google sign-in error:', err);
+      setError(err?.message || 'An unexpected error occurred while starting Google sign-in');
+      setShowPreloader(false);
+    }
   };
 
   const handleResetPassword = () => {
@@ -196,12 +227,12 @@ export function SignIn() {
                         <span className="text-xs xl:text-sm font-semibold text-white">AL</span>
                       </div>
                     </div>
-                    <span className="text-white/90 font-medium text-sm xl:text-base">Trusted by 2,500+ CPAs</span>
+                    <span className="text-white/90 font-medium text-sm xl:text.base">Trusted by 2,500+ CPAs</span>
                   </div>
-                  <p className="text-white/80 italic text-sm xl:text-base">
+                  <p className="text.white/80 italic text-sm xl:text-base">
                     "Taxos has transformed how we handle tax season. The AI insights save us hours every day."
                   </p>
-                  <p className="text-white/70 text-xs xl:text-sm mt-2">— Sarah Chen, Managing Partner</p>
+                  <p className="text.white/70 text-xs xl:text-sm mt-2">— Sarah Chen, Managing Partner</p>
                 </div>
               </div>
             </div>

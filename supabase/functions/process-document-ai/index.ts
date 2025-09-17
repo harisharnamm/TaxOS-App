@@ -1,3 +1,34 @@
+import * as Sentry from "https://esm.sh/@sentry/deno@8.26.0";
+
+Sentry.init({
+  dsn: Deno.env.get('SENTRY_DSN') ?? 'https://bf93d5a17da3c7577f6dce227113d313@o4509583266021376.ingest.de.sentry.io/4510030644772944',
+  environment: Deno.env.get('SENTRY_ENV') ?? 'development',
+  tracesSampleRate: Number(Deno.env.get('SENTRY_TRACES_SAMPLE_RATE') ?? '0.1'),
+});
+
+self.addEventListener('unhandledrejection', (event) => {
+  try { Sentry.captureException(event.reason); } catch (_) {}
+});
+self.addEventListener('error', (event) => {
+  try { Sentry.captureException(event.error ?? new Error(event.message)); } catch (_) {}
+});
+
+// Utilities: request ID & PII masking
+function generateRequestId(): string {
+  return crypto.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+function maskPII(input: unknown): string {
+  try {
+    const str = typeof input === 'string' ? input : JSON.stringify(input);
+    return str
+      .replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, '[email]')
+      .replace(/(authorization:\s*bearer\s+)[a-z0-9._-]+/gi, '$1[token]')
+      .replace(/(api[-_ ]?key|secret|token)[=:"'\s]+[^\s,"']+/gi, '$1=[redacted]');
+  } catch {
+    return '[unserializable]';
+  }
+}
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -7,9 +38,12 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
+  const requestId = generateRequestId();
+  const baseHeaders = { ...corsHeaders, 'X-Request-ID': requestId } as Record<string, string>;
+
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { headers: baseHeaders })
   }
 
   try {
@@ -20,15 +54,15 @@ serve(async (req) => {
 
     if (!document_id || !user_id) {
       return new Response(
-        JSON.stringify({ error: 'Missing required parameters' }),
+        JSON.stringify({ error: 'Missing required parameters', request_id: requestId }),
         { 
           status: 400, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          headers: { ...baseHeaders, 'Content-Type': 'application/json' } 
         }
       )
     }
 
-    console.log('🔄 Initiating document processing for:', document_id)
+    console.log(`[${requestId}] Initiating document processing for:`, maskPII(document_id))
 
     // Initialize Supabase client
     const supabaseClient = createClient(
@@ -44,17 +78,17 @@ serve(async (req) => {
       .single()
 
     if (docError || !document) {
-      console.error('❌ Document not found:', docError)
+      console.error(`[${requestId}] Document not found:`, maskPII(docError))
       return new Response(
-        JSON.stringify({ error: 'Document not found' }),
+        JSON.stringify({ error: 'Document not found', request_id: requestId }),
         { 
           status: 404, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          headers: { ...baseHeaders, 'Content-Type': 'application/json' } 
         }
       )
     }
 
-    console.log('📄 Document found:', document.storage_path)
+    console.log(`[${requestId}] Document found:`, maskPII(document.storage_path))
 
     // Get signed URL for the document
     const bucketName = document.document_type === 'irs_notice' ? 'irs-notices' : 'client-documents'
@@ -63,18 +97,18 @@ serve(async (req) => {
       .createSignedUrl(document.storage_path, 3600) // URL valid for 1 hour
 
     if (signedUrlError || !signedUrlData?.signedUrl) {
-      console.error('❌ Error creating signed URL:', signedUrlError)
+      console.error(`[${requestId}] Error creating signed URL:`, maskPII(signedUrlError))
       return new Response(
-        JSON.stringify({ error: 'Failed to create signed URL for document' }),
+        JSON.stringify({ error: 'Failed to create signed URL for document', request_id: requestId }),
         { 
           status: 500, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          headers: { ...baseHeaders, 'Content-Type': 'application/json' } 
         }
       )
     }
 
     const file_url = signedUrlData.signedUrl
-    console.log('🔗 Signed URL generated:', file_url)
+    console.log(`[${requestId}] Signed URL generated`)
 
     const EDEN_AI_API_KEY = Deno.env.get('EDEN_AI_API_KEY')
     if (!EDEN_AI_API_KEY) {
@@ -82,7 +116,7 @@ serve(async (req) => {
     }
 
     // Step 1: OCR Text Extraction
-    console.log('🤖 Calling Eden AI OCR (ocr_async)...')
+    console.log(`[${requestId}] Calling Eden AI OCR (ocr_async)...`)
     const ocrResponse = await fetch('https://api.edenai.run/v2/ocr/ocr_async', {
       method: 'POST',
       headers: {
@@ -93,28 +127,28 @@ serve(async (req) => {
         providers: ['mistral'],
         file_url: file_url,
         show_original_response: false,
-        send_webhook_data: false // We will handle the callback manually if needed, or poll
+        send_webhook_data: false
       }),
     })
 
     if (!ocrResponse.ok) {
       const errorText = await ocrResponse.text()
-      console.error('❌ Eden AI OCR error:', errorText)
-      throw new Error(`Eden AI OCR failed: ${ocrResponse.statusText} - ${errorText}`)
+      console.error(`[${requestId}] Eden AI OCR error:`, maskPII(errorText))
+      throw new Error(`Eden AI OCR failed: ${ocrResponse.statusText}`)
     }
 
     const ocrResult = await ocrResponse.json()
     const ocr_job_id = ocrResult.public_id
-    console.log('✅ Eden AI OCR job started, ID:', ocr_job_id)
+    console.log(`[${requestId}] Eden AI OCR job started, ID:`, maskPII(ocr_job_id))
 
-    // Poll for OCR result (simplified polling for demonstration)
+    // Poll for OCR result (simplified)
     let ocr_status = 'pending'
     let extracted_text = ''
     let pollAttempts = 0
     const maxPollAttempts = 10 // Poll for up to 10 seconds
 
     while (ocr_status !== 'finished' && ocr_status !== 'failed' && pollAttempts < maxPollAttempts) {
-      await new Promise(resolve => setTimeout(resolve, 1000)) // Wait 1 second
+      await new Promise(resolve => setTimeout(resolve, 1000))
       pollAttempts++
 
       const pollResponse = await fetch(`https://api.edenai.run/v2/ocr/ocr_async/${ocr_job_id}`, {
@@ -125,55 +159,46 @@ serve(async (req) => {
 
       if (!pollResponse.ok) {
         const errorText = await pollResponse.text()
-        console.error('❌ Eden AI OCR poll error:', errorText)
-        throw new Error(`Eden AI OCR polling failed: ${pollResponse.statusText} - ${errorText}`)
+        console.error(`[${requestId}] Eden AI OCR poll error:`, maskPII(errorText))
+        throw new Error(`Eden AI OCR polling failed: ${pollResponse.statusText}`)
       }
 
       const pollResult = await pollResponse.json()
       ocr_status = pollResult.status
-      console.log(`🔄 OCR job status: ${ocr_status} (attempt ${pollAttempts})`)
+      console.log(`[${requestId}] OCR job status: ${ocr_status} (attempt ${pollAttempts})`)
 
       if (ocr_status === 'finished') {
-        // Handle different response structures from Eden AI
-        if (pollResult.results && pollResult.results.mistral && pollResult.results.mistral.text) {
+        // Extract text from various shapes
+        if (pollResult.results?.mistral?.text) {
           extracted_text = pollResult.results.mistral.text
-        } else if (pollResult.results && pollResult.results.mistral && pollResult.results.mistral.extracted_text) {
+        } else if (pollResult.results?.mistral?.extracted_text) {
           extracted_text = pollResult.results.mistral.extracted_text
-        } else if (pollResult.results && pollResult.results.mistral && pollResult.results.mistral.raw_text) {
+        } else if (pollResult.results?.mistral?.raw_text) {
           extracted_text = pollResult.results.mistral.raw_text
-        } else if (pollResult.results && typeof pollResult.results === 'string') {
+        } else if (typeof pollResult.results === 'string') {
           extracted_text = pollResult.results
         } else {
-          console.error('❌ Unexpected OCR result structure:', JSON.stringify(pollResult, null, 2))
-          // Try to find raw_text anywhere in the response
           const findRawText = (obj: any): string | null => {
             if (typeof obj === 'string') return obj
             if (typeof obj !== 'object' || obj === null) return null
-            
-            if (obj.raw_text && typeof obj.raw_text === 'string') {
-              return obj.raw_text
-            }
-            
+            if (obj.raw_text && typeof obj.raw_text === 'string') return obj.raw_text
             for (const key in obj) {
-              const result = findRawText(obj[key])
-              if (result) return result
+              const res = findRawText(obj[key]);
+              if (res) return res;
             }
             return null
           }
-          
           const foundText = findRawText(pollResult)
           if (foundText) {
             extracted_text = foundText
-            console.log('✅ Found raw_text in response structure')
+            console.log(`[${requestId}] Found raw_text in response structure`)
           } else {
             throw new Error('Could not extract text from OCR result')
           }
         }
-        console.log('✅ OCR text extracted successfully.')
-        console.log('📝 Extracted text length:', extracted_text.length)
-        console.log('📝 First 200 chars:', extracted_text.substring(0, 200))
+        console.log(`[${requestId}] OCR text extracted successfully. length=`, extracted_text.length)
       } else if (ocr_status === 'failed') {
-        throw new Error(`OCR job failed: ${JSON.stringify(pollResult.error)}`)
+        throw new Error('OCR job failed')
       }
     }
 
@@ -182,30 +207,15 @@ serve(async (req) => {
     }
 
     // Save extracted raw_text to database ocr_text column
-    console.log('💾 Saving OCR text to database, length:', extracted_text.length)
+    console.log(`[${requestId}] Saving OCR text to database, length:`, extracted_text.length)
     const { error: ocrUpdateError } = await supabaseClient
       .from('documents')
       .update({ ocr_text: extracted_text })
       .eq('id', document_id)
 
     if (ocrUpdateError) {
-      console.error('❌ Error updating document with OCR text:', ocrUpdateError)
-      throw new Error(`Failed to save OCR text: ${ocrUpdateError.message}`)
-    } else {
-      console.log('✅ Document updated with OCR text successfully.')
-      
-      // Verify the update worked
-      const { data: verifyDoc, error: verifyError } = await supabaseClient
-        .from('documents')
-        .select('ocr_text')
-        .eq('id', document_id)
-        .single()
-      
-      if (verifyError) {
-        console.error('❌ Error verifying OCR text save:', verifyError)
-      } else {
-        console.log('✅ Verification: OCR text length in DB:', verifyDoc?.ocr_text?.length || 0)
-      }
+      console.error(`[${requestId}] Error updating document with OCR text:`, maskPII(ocrUpdateError))
+      throw new Error('Failed to save OCR text')
     }
 
     // Step 2: Document Classification
@@ -415,7 +425,7 @@ if (classificationUpdateError) {
           processing_function: processingFunction
         }),
         { 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          headers: { ...baseHeaders, 'Content-Type': 'application/json' } 
         }
       )
     } else {
@@ -440,18 +450,20 @@ if (classificationUpdateError) {
           requires_manual_review: true
         }),
         { 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          headers: { ...baseHeaders, 'Content-Type': 'application/json' } 
         }
       )
     }
 
   } catch (error) {
-    console.error('❌ Error processing document:', error)
+    try { Sentry.captureException(error, { extra: { request_id: requestId } }); } catch (_) {}
+    await Sentry.flush(2000);
+    console.error(`[${requestId}] Error processing document:`, maskPII((error as any)?.message || error))
     return new Response(
-      JSON.stringify({ error: 'Internal server error', details: error.message }),
+      JSON.stringify({ error: 'Internal server error', request_id: requestId }),
       { 
         status: 500, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        headers: { ...baseHeaders, 'Content-Type': 'application/json' } 
       }
     )
   }

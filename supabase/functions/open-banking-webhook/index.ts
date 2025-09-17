@@ -1,3 +1,33 @@
+import * as Sentry from "https://esm.sh/@sentry/deno@8.26.0";
+
+Sentry.init({
+  dsn: Deno.env.get('SENTRY_DSN') ?? 'https://bf93d5a17da3c7577f6dce227113d313@o4509583266021376.ingest.de.sentry.io/4510030644772944',
+  environment: Deno.env.get('SENTRY_ENV') ?? 'development',
+  tracesSampleRate: Number(Deno.env.get('SENTRY_TRACES_SAMPLE_RATE') ?? '0.1'),
+});
+
+self.addEventListener('unhandledrejection', (event) => {
+  try { Sentry.captureException(event.reason); } catch (_) {}
+});
+self.addEventListener('error', (event) => {
+  try { Sentry.captureException(event.error ?? new Error(event.message)); } catch (_) {}
+});
+
+function generateRequestId(): string {
+  return crypto.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+function maskPII(input: unknown): string {
+  try {
+    const str = typeof input === 'string' ? input : JSON.stringify(input);
+    return str
+      .replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, '[email]')
+      .replace(/(authorization:\s*bearer\s+)[a-z0-9._-]+/gi, '$1[token]')
+      .replace(/(api[-_ ]?key|secret|token)[=:"'\s]+[^\s,"']+/gi, '$1=[redacted]');
+  } catch {
+    return '[unserializable]';
+  }
+}
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -16,10 +46,7 @@ if (!supabaseUrl || !supabaseServiceRoleKey) {
 }
 
 const supabase = createClient(supabaseUrl, supabaseServiceRoleKey, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false
-  }
+  auth: { autoRefreshToken: false, persistSession: false }
 });
 
 // Webhook event types from Finicity documentation
@@ -104,6 +131,7 @@ async function processWebhookEvent(event: WebhookEvent, headers: Record<string, 
 
     return { processed: true, eventId: data.id };
   } catch (error) {
+    try { Sentry.captureException(error); } catch (_) {}
     console.error('Error processing webhook event:', error);
     throw error;
   }
@@ -471,6 +499,7 @@ async function processTxPushTransaction(customerId: string, payload: any) {
     await broadcastTransactionUpdate(insertedTx.id, 'created');
     
   } catch (error) {
+    try { Sentry.captureException(error); } catch (_) {}
     console.error('Error processing TxPush transaction:', error);
   }
 }
@@ -493,6 +522,7 @@ async function handleTransactionDeletion(customerId: string, payload: any) {
     }
 
   } catch (error) {
+    try { Sentry.captureException(error); } catch (_) {}
     console.error('Error handling transaction deletion:', error);
   }
 }
@@ -579,6 +609,7 @@ async function processHistoricalTransactions(customerId: string, payload: any) {
     }
 
   } catch (error) {
+    try { Sentry.captureException(error); } catch (_) {}
     console.error('Error processing historical transactions:', error);
   }
 }
@@ -617,6 +648,7 @@ async function enhanceTransactionWithAI(transactionId: string, transactionData: 
     }
     
   } catch (error) {
+    try { Sentry.captureException(error); } catch (_) {}
     console.error('Error enhancing transaction with AI:', error);
   }
 }
@@ -662,6 +694,7 @@ async function updateTransactionWithEnrichment(transactionId: string, enrichment
     }
     
   } catch (error) {
+    try { Sentry.captureException(error); } catch (_) {}
     console.error('Error updating transaction with enrichment:', error);
   }
 }
@@ -722,6 +755,7 @@ async function broadcastTransactionUpdate(transactionId: string, updateType: 'cr
     console.log(`✅ Real-time update broadcasted for transaction ${transactionId}`);
     
   } catch (error) {
+    try { Sentry.captureException(error); } catch (_) {}
     console.error('Error broadcasting real-time update:', error);
   }
 }
@@ -764,23 +798,24 @@ function verifyWebhookSignature(headers: Record<string, string>, body: string): 
 }
 
 serve(async (req) => {
+  const requestId = generateRequestId();
+  const baseHeaders = { ...corsHeaders, 'X-Request-ID': requestId } as Record<string, string>;
+
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return new Response("ok", { headers: baseHeaders });
   }
 
   try {
     if (req.method !== "POST") {
-      return new Response(JSON.stringify({ error: "Method not allowed" }), {
+      return new Response(JSON.stringify({ error: "Method not allowed", request_id: requestId }), {
         status: 405,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...baseHeaders, "Content-Type": "application/json" },
       });
     }
 
     // Extract headers and body
     const headers: Record<string, string> = {};
-    req.headers.forEach((value, key) => {
-      headers[key.toLowerCase()] = value;
-    });
+    req.headers.forEach((value, key) => { headers[key.toLowerCase()] = value; });
 
     const body = await req.text();
     let event: WebhookEvent;
@@ -788,72 +823,75 @@ serve(async (req) => {
     try {
       event = JSON.parse(body);
     } catch (error) {
-      console.error('Invalid JSON in webhook body:', error);
-      return new Response(JSON.stringify({ error: "Invalid JSON" }), {
+      console.error(`[${requestId}] Invalid JSON in webhook body:`, maskPII(error))
+      return new Response(JSON.stringify({ error: "Invalid JSON", request_id: requestId }), {
         status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...baseHeaders, "Content-Type": "application/json" },
       });
     }
 
     // Validate required fields
     if (!event.eventType) {
-      console.error('Missing required webhook fields:', event);
-      return new Response(JSON.stringify({ error: "Missing required fields" }), {
+      console.error(`[${requestId}] Missing required webhook fields:`, maskPII(event));
+      return new Response(JSON.stringify({ error: "Missing required fields", request_id: requestId }), {
         status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...baseHeaders, "Content-Type": "application/json" },
       });
     }
 
     // For ping events, eventId is not required
     if (event.eventType !== 'ping' && !event.eventId) {
-      console.error('Missing eventId for non-ping event:', event);
-      return new Response(JSON.stringify({ error: "Missing eventId" }), {
+      console.error(`[${requestId}] Missing eventId for non-ping event:`, maskPII(event));
+      return new Response(JSON.stringify({ error: "Missing eventId", request_id: requestId }), {
         status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...baseHeaders, "Content-Type": "application/json" },
       });
     }
 
     // For ping events, customerId is not required
     if (event.eventType !== 'ping' && !event.customerId) {
-      console.error('Missing customerId for non-ping event:', event);
-      return new Response(JSON.stringify({ error: "Missing customerId" }), {
+      console.error(`[${requestId}] Missing customerId for non-ping event:`, maskPII(event));
+      return new Response(JSON.stringify({ error: "Missing customerId", request_id: requestId }), {
         status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...baseHeaders, "Content-Type": "application/json" },
       });
     }
 
     // Verify webhook signature
     if (!verifyWebhookSignature(headers, body)) {
-      console.warn('Webhook signature verification failed');
+      console.warn(`[${requestId}] Webhook signature verification failed`);
       // Still process the event but mark as unverified
     }
 
     // Process the webhook event
     const result = await processWebhookEvent(event, headers);
-    
-    console.log(`Webhook processed: ${result.processed ? 'success' : 'duplicate'}`);
+    console.log(`[${requestId}] Webhook processed:`, result.processed ? 'success' : 'duplicate');
 
     // Always return 202 Accepted to prevent retries
     return new Response(JSON.stringify({ 
       received: true, 
       processed: result.processed,
-      eventId: result.eventId 
+      eventId: result.eventId,
+      request_id: requestId 
     }), {
       status: 202,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...baseHeaders, "Content-Type": "application/json" },
     });
 
   } catch (error) {
-    console.error("Webhook processing error:", error);
+    try { Sentry.captureException(error, { extra: { request_id: requestId } }); } catch (_) {}
+    await Sentry.flush(2000);
+    console.error(`[${requestId}] Webhook processing error:`, maskPII((error as any)?.message || error));
     
     // Return 202 even on error to prevent retries
     return new Response(JSON.stringify({ 
       received: true, 
       processed: false,
-      error: "Internal processing error" 
+      error: "Internal processing error",
+      request_id: requestId 
     }), {
       status: 202,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...baseHeaders, "Content-Type": "application/json" },
     });
   }
 });

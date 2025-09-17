@@ -8,8 +8,7 @@ import {
 } from './uploadUtils';
 import { 
   createDocumentRecord, 
-  updateDocumentProcessing,
-  createIRSNoticeRecord 
+  updateDocumentProcessing
 } from './documentQueries';
 import { 
   Document, 
@@ -27,7 +26,7 @@ export class DocumentService {
     userId: string,
     options: DocumentUploadOptions = {},
     onProgress?: (progress: UploadProgress) => void
-  ): Promise<{ data: Document | null; error: any }> {
+  ): Promise<{ data: Document | null; error: unknown }> {
     try {
       // Starting document upload process
       
@@ -161,7 +160,7 @@ export class DocumentService {
 
       return { data: documentData, error: null };
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       onProgress?.({
         file,
         progress: 0,
@@ -180,8 +179,8 @@ export class DocumentService {
     userId: string,
     options: DocumentUploadOptions = {},
     onProgress?: (progress: UploadProgress[]) => void
-  ): Promise<{ results: Array<{ data: Document | null; error: any }> }> {
-    const results: Array<{ data: Document | null; error: any }> = [];
+  ): Promise<{ results: Array<{ data: Document | null; error: unknown }> }> {
+    const results: Array<{ data: Document | null; error: unknown }> = [];
     const progressTracking: UploadProgress[] = files.map(file => ({
       file,
       progress: 0,
@@ -219,7 +218,7 @@ export class DocumentService {
   /**
    * Downloads a document from storage
    */
-  async downloadDocument(documentId: string): Promise<{ data: Blob | null; error: any }> {
+  async downloadDocument(documentId: string): Promise<{ data: Blob | null; error: unknown }> {
     try {
       // Get document info from database
       const { data: document, error: dbError } = await supabase
@@ -257,7 +256,7 @@ export class DocumentService {
   async getDocumentSignedURL(
     documentId: string, 
     expiresIn: number = 3600
-  ): Promise<{ data: string | null; error: any }> {
+  ): Promise<{ data: string | null; error: unknown }> {
     try {
       // Getting signed URL for document
       
@@ -322,7 +321,7 @@ export class DocumentService {
   /**
    * Deletes a document from both storage and database
    */
-  async deleteDocument(documentId: string): Promise<{ error: any }> {
+  async deleteDocument(documentId: string): Promise<{ error: unknown }> {
     try {
       // Get document info
       const { data: document, error: dbError } = await supabase
@@ -496,7 +495,7 @@ export class DocumentService {
       
       return { success: true };
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(`❌ ${classificationType} processing failed:`, error);
       return { success: false, error: error.message };
     }

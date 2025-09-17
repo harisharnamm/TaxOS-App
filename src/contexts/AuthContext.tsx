@@ -23,7 +23,10 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const auth = useAuth();
 
-  // Auth state management
+  // In production, avoid logging sensitive auth/session details
+  if (import.meta.env.MODE === 'production') {
+    // no-op: ensure we don't add verbose logs here in the future
+  }
 
   return (
     <AuthContext.Provider value={auth}>
