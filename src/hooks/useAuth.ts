@@ -60,11 +60,49 @@ export function useAuth() {
     };
     
     initializeAuth();
+    
+    // Additional session check for OAuth callbacks
+    const checkSessionAfterDelay = async () => {
+      console.log('🔄 Additional session check for OAuth callback');
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      
+      const { data, error } = await supabase.auth.getSession();
+      console.log('🔄 Delayed session check:', { 
+        hasSession: !!data.session, 
+        hasUser: !!data.session?.user, 
+        userEmail: data.session?.user?.email,
+        error: error?.message 
+      });
+      
+      if (data.session?.user && mounted) {
+        console.log('✅ Delayed session check found user:', data.session.user.email);
+        setAuthState(prev => ({ 
+          ...prev, 
+          session: data.session, 
+          user: data.session.user, 
+          loading: false 
+        }));
+        
+        // Force redirect if we're on signin page
+        if (window.location.pathname === '/signin') {
+          console.log('🔄 Delayed check: User authenticated on signin page, redirecting');
+          window.location.href = '/';
+        }
+      }
+    };
+    
+    checkSessionAfterDelay();
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('🔄 Auth state changed:', event, session?.user?.email, 'mounted:', mounted);
+        console.log('🔄 Session details:', { 
+          hasSession: !!session, 
+          hasUser: !!session?.user, 
+          userEmail: session?.user?.email,
+          event 
+        });
         
         if (mounted) {
           if (session?.user) {
@@ -77,6 +115,12 @@ export function useAuth() {
             }));
             // Try to fetch profile, but don't block on it
             fetchProfile(session.user.id);
+            
+            // Force redirect if we're on signin page
+            if (window.location.pathname === '/signin') {
+              console.log('🔄 User authenticated on signin page, redirecting to dashboard');
+              window.location.href = '/';
+            }
           } else {
             console.log('❌ No session, clearing auth state');
             setAuthState(prev => ({ ...prev, session, user: null, profile: null, loading: false }));
