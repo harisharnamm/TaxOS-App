@@ -19,13 +19,20 @@ export function SignIn() {
     const handleOAuthCallback = async () => {
       try {
         console.log('🔄 Checking for OAuth callback...');
+        console.log('🔄 Current URL:', window.location.href);
         
         // Check if we have OAuth callback parameters in the URL
         const urlParams = new URLSearchParams(window.location.search);
         const hashParams = new URLSearchParams(window.location.hash.substring(1));
         
+        console.log('🔄 URL params:', Object.fromEntries(urlParams));
+        console.log('🔄 Hash params:', Object.fromEntries(hashParams));
+        
         if (urlParams.get('code') || hashParams.get('access_token') || hashParams.get('code')) {
           console.log('🔄 OAuth callback detected in URL');
+          
+          // Wait a bit for Supabase to process the callback
+          await new Promise(resolve => setTimeout(resolve, 1000));
           
           // Force a session refresh to pick up the OAuth session
           const { data, error } = await supabase.auth.getSession();
@@ -41,7 +48,12 @@ export function SignIn() {
             // Clear any error states
             setError(null);
             setConnectionError(false);
-            // The auth state change will be handled by the useAuth hook
+            // Force a page reload to ensure auth state is properly set
+            window.location.href = '/';
+            return;
+          } else {
+            console.log('❌ No session found after OAuth callback');
+            setError('Authentication failed. Please try again.');
           }
         } else {
           // Regular session check

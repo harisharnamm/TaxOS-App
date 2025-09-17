@@ -8,6 +8,7 @@ import { ToastProvider } from './contexts/ToastContext';
 import { PreloaderProvider } from './contexts/PreloaderContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { Sidebar } from './components/organisms/Sidebar';
+import { supabase } from './lib/supabase';
 
 // Lazy-loaded pages (wrap named exports)
 const Dashboard = lazy(() => import('./pages/Dashboard').then(m => ({ default: m.Dashboard })));
@@ -34,6 +35,38 @@ const ResetPassword = lazy(() => import('./pages/ResetPassword').then(m => ({ de
 
 function AppContent() {
   const location = useLocation();
+  
+  // Handle OAuth callback at app level
+  useEffect(() => {
+    const handleOAuthCallback = async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const hashParams = new URLSearchParams(window.location.hash.substring(1));
+      
+      if (urlParams.get('code') || hashParams.get('access_token') || hashParams.get('code')) {
+        console.log('🔄 App-level OAuth callback detected');
+        
+        // Wait for Supabase to process the callback
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // Check session
+        const { data, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error('❌ App-level OAuth error:', error);
+          return;
+        }
+        
+        if (data.session?.user) {
+          console.log('✅ App-level OAuth success, user:', data.session.user.email);
+          // Clear URL parameters and redirect to dashboard
+          window.history.replaceState({}, document.title, '/');
+          window.location.href = '/';
+        }
+      }
+    };
+
+    handleOAuthCallback();
+  }, []);
   
   useEffect(() => {
     // Route change tracking for analytics
