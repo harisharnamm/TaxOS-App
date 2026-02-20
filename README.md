@@ -1,103 +1,88 @@
-# Supabase CLI
+# TaxOS - Intelligent Tax & Bookkeeping for CPAs
 
-[![Coverage Status](https://coveralls.io/repos/github/supabase/cli/badge.svg?branch=main)](https://coveralls.io/github/supabase/cli?branch=main) [![Bitbucket Pipelines](https://img.shields.io/bitbucket/pipelines/supabase-cli/setup-cli/master?style=flat-square&label=Bitbucket%20Canary)](https://bitbucket.org/supabase-cli/setup-cli/pipelines) [![Gitlab Pipeline Status](https://img.shields.io/gitlab/pipeline-status/sweatybridge%2Fsetup-cli?label=Gitlab%20Canary)
-](https://gitlab.com/sweatybridge/setup-cli/-/pipelines)
+TaxOS is a comprehensive, AI-driven platform designed specifically for CPAs and tax professionals to streamline client management, document processing, and bookkeeping workflows.
 
-[Supabase](https://supabase.io) is an open source Firebase alternative. We're building the features of Firebase using enterprise-grade open source tools.
+---
 
-This repository contains all the functionality for Supabase CLI.
+## 🚀 Key Features
 
-- [x] Running Supabase locally
-- [x] Managing database migrations
-- [x] Creating and deploying Supabase Functions
-- [x] Generating types directly from your database schema
-- [x] Making authenticated HTTP requests to [Management API](https://supabase.com/docs/reference/api/introduction)
+- **Client Management**: centralized dashboard for managing client details, entity types, and tax years.
+- **AI-Powered Document Processing**: Automated OCR and AI analysis for IRS notices, tax documents, and receipts.
+- **Intelligent Bookkeeping**: Real-time transaction tracking, transaction learning, and automated reconciliation.
+- **AI Assistant**: A specialized AI chat for tax advice and document analysis.
+- **Task & Workflow Management**: Integrated task tracking to keep tax workflows on schedule.
+- **Vendor & 1099 Tracking**: Automated 1099 tracking and vendor compliance management.
+- **Open Banking Integration**: Secure bank connection for direct transaction syncing.
+- **Secure Client Communications**: Integrated email and document sharing.
 
-## Getting started
+## 🛠 Tech Stack
 
-### Install the CLI
+### Frontend
+- **Framework**: React 18 with [Vite](https://vitejs.dev/)
+- **Language**: TypeScript
+- **Styling**: Tailwind CSS
+- **Animations**: Framer Motion
+- **Icons**: Lucide React & Tabler Icons
 
-Available via [NPM](https://www.npmjs.com) as dev dependency. To install:
+### Backend & Infrastructure
+- **BaaS**: [Supabase](https://supabase.com/) (PostgreSQL, Auth, Storage, Edge Functions)
+- **AI**: OpenAI (via Supabase Edge Functions)
+- **Email**: Resend
+- **Reporting**: Sentry for monitoring
 
-```bash
-npm i supabase --save-dev
+### Testing
+- **Unit/Integration**: Vitest
+- **E2E**: Playwright
+
+## 📂 Project Structure
+
+```text
+src/
+├── components/     # Atomic design (atoms, molecules, organisms)
+├── contexts/       # React contexts for state management
+├── hooks/          # Custom hooks for API and logic
+├── lib/            # Shared utilities and service definitions
+├── pages/          # Application routes and views
+└── types/          # TypeScript definitions
+supabase/
+├── functions/      # AI and backend logic (Edge Functions)
+└── migrations/     # Database schema and RLS policies
 ```
 
-To install the beta release channel:
+## 🏁 Getting Started
 
-```bash
-npm i supabase@beta --save-dev
-```
+### Prerequisites
+- Node.js 18+
+- Supabase Account
 
-When installing with yarn 4, you need to disable experimental fetch with the following nodejs config.
+### Installation
+1.  **Clone the repository**:
+    ```bash
+    git clone <repository-url>
+    cd TaxOS-App
+    ```
+2.  **Install dependencies**:
+    ```bash
+    npm install
+    ```
+3.  **Setup Environment**:
+    Create a `.env.local` file with your credentials:
+    ```bash
+    VITE_SUPABASE_URL=your_supabase_url
+    VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+    ```
+4.  **Run Development Server**:
+    ```bash
+    npm run dev
+    ```
 
-```
-NODE_OPTIONS=--no-experimental-fetch yarn add supabase
-```
+## 🧪 Testing
 
-> **Note**
-For Bun versions below v1.0.17, you must add `supabase` as a [trusted dependency](https://bun.sh/guides/install/trusted) before running `bun add -D supabase`.
+- **Run Unit Tests**: `npm test`
+- **Run E2E Tests**: `npm run e2e`
 
-<details>
-  <summary><b>macOS</b></summary>
-
-  Available via [Homebrew](https://brew.sh). To install:
-
-  ```sh
-  brew install supabase/tap/supabase
-  ```
-
-  To install the beta release channel:
-  
-  ```sh
-  brew install supabase/tap/supabase-beta
-  brew link --overwrite supabase-beta
-  ```
-  
-  To upgrade:
-
-  ```sh
-  brew upgrade supabase
-  ```
-</details>
-
-<details>
-  <summary><b>Windows</b></summary>
-
-  Available via [Scoop](https://scoop.sh). To install:
-
-  ```powershell
-  scoop bucket add supabase https://github.com/supabase/scoop-bucket.git
-  scoop install supabase
-  ```
-
-  To upgrade:
-
-  ```powershell
-  scoop update supabase
-  ```
-</details>
-
-<details>
-  <summary><b>Linux</b></summary>
-
-  Available via [Homebrew](https://brew.sh) and Linux packages.
-
-  #### via Homebrew
-
-  To install:
-
-  ```sh
-  brew install supabase/tap/supabase
-  ```
-
-  To upgrade:
-
-  ```sh
-  brew upgrade supabase
-  ```
-
-  #### via Linux packages
+## 📄 License
+MIT License. See [LICENSE](LICENSE) for details.
 
   Linux packages are provided in [Releases](https://github.com/supabase/cli/releases). To install, download the `.apk`/`.deb`/`.rpm`/`.pkg.tar.zst` file depending on your package manager and run the respective commands.
 
